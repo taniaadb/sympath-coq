@@ -23,6 +23,7 @@ Module Type Expr.
   (*We want ints, booleans and vars to be the basic expressions that we use to build other expressions on.  I diferentiate between boolean and arithmetic expressions and include variables with the arithmetic expressions*)
   (*OBS: we assume that all variables are global and that they only hold numbers. We use strings to represent variables*)
 
+   (*overflow problemer -> hvordan håndterer Coq det?; hvordan kan man representere det i Coq?*)
   
 Inductive aexpr : Type := (*arithmetic expressions based on Integers*)
   | ANum (n : nat)
@@ -33,6 +34,7 @@ Inductive aexpr : Type := (*arithmetic expressions based on Integers*)
 Inductive bexpr : Type := (*boolean expressions*)
   | BTrue
   | BFalse
+  | BVar (x : string)
   | BNot (b : bexpr)
   | BAnd (b1 b2 : bexpr)
   | BEq (a1 a2 : aexpr)
@@ -43,11 +45,12 @@ Inductive bexpr : Type := (*boolean expressions*)
 
 Coercion ANum : nat >-> aexpr. (*to avoid writing Anum everytime*)
 Coercion AVar : string >-> aexpr.
+Coercion BVar : string >-> bexpr. (*look here!*)
 Definition bool_to_bexpr (b : bool) : bexpr :=
   if b then BTrue else BFalse.
 Coercion bool_to_bexpr : bool >-> bexpr.
 
-(*Not sure what these do... *)
+(*scope*)
 Bind Scope expr_scope with aexpr.
 Bind Scope expr_scope with bexpr.
 Delimit Scope expr_scope with expr.
@@ -65,9 +68,10 @@ Notation "'~' b" := (BNot b) (at level 75, right associativity) : expr_scope.
     mapping from strings to [Z], and will use [0] as default value
     in the store. --> do we neet this?*)
 
-(*Check (1 + 3)%expr. -> with notation*)
-(*Check (Aplus 1  3). -> without notation*)
-(*Check (Aplus (ANum 1) (ANum 3)). -> without coercion*)
+Check (1 * "X"%string)%expr. (*-> with notation*)
+Check (true && "X"%string)%expr. 
+Check (APlus 1  3). (*-> without notation*)
+Check (APlus (ANum 1) (ANum 3)). (* -> without coercion*)
    
 End Expr. 
   
@@ -75,6 +79,7 @@ End Expr.
 Module Type SymExpr.
 
   (*Not sure what LInt and LBool are? so I am not defining them*)
+  (*we have no variables defined her, we have to add them!*)
 
   Inductive symExprInt : Type :=
   | SymInt (n : nat)
@@ -111,10 +116,11 @@ Check (true == true)%symexpr.
 
 End SymExpr.
 
-Module Statement (E : Expr).
+Module Type Statement (E : Expr).
   Import E. 
 
-  Check (1 + 2)%expr. (*works!*)
+  Check (1 + 2)%expr.
+  Check (1 + "x"%string)%expr.
 
   Inductive statements : Type :=
   | SAss (x : string) (a : aexpr) (*Cannot use AVar, maybe better to just define it here?
@@ -125,21 +131,27 @@ Module Statement (E : Expr).
   | SWhile (b : bexpr) (s : statements)
   | SNWhile (b : bexpr) (n : nat) (s : statements) (*more correct to use aexpr?*)
   | SSeq (s1 s2 : statements).
+
+Bind Scope stm_scope with statements.
+(***Bind Scope expr_scope with bexpr.
+Bind Scope expr_scope with bexpr.
+Delimit Scope stm_scope with expr. ***)
+
+Delimit Scope stm_scope with stm.
+(*better to have own scope with access to expr scope!*)
   
-      
-Bind Scope expr_scope with statements.
 Notation "'skip'" :=
    SSkip : expr_scope.
 Notation "x '::=' a" := (*cannot use :=*)
-  (SAss x a) (at level 60) : expr_scope.
+  (SAss x a) (at level 60) : stm_scope.
 Notation "s1 ;; s2" := (*cannot use ;*)
-  (SSeq s1 s2) (at level 80, right associativity) : expr_scope.
+  (SSeq s1 s2) (at level 80, right associativity) : stm_scope.
 Notation "'WHILE' b 'DO' s 'END'" := (*cannot use byilt in syntax from Coq, that is why it needs to be written like this*)
-  (SWhile b s) (at level 80, right associativity) : expr_scope.
+  (SWhile b s) (at level 80, right associativity) : stm_scope.
 Notation "'WHILE' b 'FOR' n 'DO' s 'END'" := (*need to separate args*)
-  (SWhile b n s) (at level 80, right associativity) : expr_scope.
+  (SWhile b n s) (at level 80, right associativity) : stm_scope.
 Notation "'IF' b 'THEN' s1 'ELSE' s2" :=
-  (SIf b s1 s2) (at level 80, right associativity) : expr_scope.
+  (SIf b s1 s2) (at level 80, right associativity) : stm_scope.
 
 (*Definition test : statements :=*)
 
@@ -149,9 +161,9 @@ Definition X : string := "X".
 Definition Y: string := "Y".
 Definition Z : string := "Z".
 
-Check (Z ::= 1)%expr.
-Check (Z ::= X)%expr.
-Check (WHILE ~(Z = 0) DO Y ::= Y * Z END)%expr. 
+Check (Z ::= 1)%stm.
+Check (Z ::= X)%stm.
+Check (WHILE ~(Z = 0) DO Y ::= Y * Z END)%stm. 
 
 Definition test_statement : statements :=
   (Z ::= X;;
@@ -159,11 +171,23 @@ Definition test_statement : statements :=
   WHILE ~(Z = 0) DO
     Y ::= Y * Z;;
     Z ::= Z + 1
-  END)%expr.
+  END)%stm.
   
 End Statement. 
   
+(*One more typw: program that kan have more proc and each proc has a S: statement*)
+
+(*Module Type Program (S : Statement). (*dif between Module and Module Type ?*)
+  Import S.
+
+  Inductive program : Type :=  
+  | Proc (s : statements).
+  | Prog (p1 p2 : Proc). -> we come back to this*)
+
   
+    
+  
+       
            
             
             
