@@ -1,5 +1,3 @@
-Add LoadPath "/Users/tania-adelinabulz/Documents/Forskerlinja/Coq".
-
 Set Warnings "-notation-overridden,-parsing".
 From Coq Require Import Bool.Bool.
 From Coq Require Import ZArith.ZArith. (*Z instead of nat?*)
@@ -214,7 +212,6 @@ Module Program.
 End Program.
   
 
-  
     
   
        
