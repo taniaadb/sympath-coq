@@ -105,12 +105,10 @@ Module SymExpr.
   Coercion SymBool : bool >-> symExprBool.
   Coercion SymLBool : LBool >-> symExprBool.
 
-(*Not sure what these do... *)
 Bind Scope symexpr_scope with symExprInt.
 Bind Scope symexpr_scope with symExprBool.
 Delimit Scope symexpr_scope with symexpr.
 
-(*Print Grammar Tactic. *)
 
 Notation "x + y" := (SymPlus x y) (at level 50, left associativity) : symexpr_scope.
 Notation "x * y" := (SymMult x y) (at level 40, left associativity) : symexpr_scope.
@@ -124,6 +122,7 @@ Check (b(2))%symexpr.
 Check (1 + x(2))%symexpr.
 Check (1 = 2)%symexpr.
 Check (true == true)%symexpr.
+
 
 End SymExpr.
 
