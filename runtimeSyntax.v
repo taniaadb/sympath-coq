@@ -28,7 +28,8 @@ Module Thread.
 End Thread.
 
 Module Var.
-  (*Better to declare it as list?*)
+  (*Better to declare it as list? -> yes, declare it as list, can be empty*)
+   (* same variables from Expr*) 
   (*Do we use the same vars as from Expr?*)
   (*I define new ones here*)
 
@@ -38,7 +39,7 @@ Module Var.
 
   Coercion Var : string >-> vars.
   Notation "{ x }" := (Var x).
-  Notation "V1 ; V2" := (VarUnion V1 V2) (at level 20) : var_scope.
+  Notation "V1 ; V2" := (VarUnion V1 V2) (at level 50) : var_scope.
 
   Bind Scope var_scope with vars.
   Delimit Scope var_scope with var. 
@@ -68,8 +69,13 @@ Module Sympath.
 
   Notation "s1 . s2" := (SymSeq s1 s2) (at level 50).
   Notation " id ( e ~ V1 ~ V2 )" := (SymEventInt id e V1 V2) (at level 50). (*does not work yet!*)
+  Notation " id ( e ~ V1 ~ V2 )" := (SymEventBool id e V1 V2) (at level 50).
+
+  Print Visibility symexpr_scope. 
+
+
+  Check (1 + 2)%symexpr.
   (*Check (1 + x(2))%symexpr. -> does not work! *)
-  Check (1 = 2)%symexpr.
 
 
   (*Definition test_ev : symExprInt :=
