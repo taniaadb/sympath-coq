@@ -22,14 +22,14 @@ Module SymPaths. (*NOT Module Type! just module*)
   Inductive aexpr : Type := (*arithmetic expressions based on Integers*)
   | ANum (n : nat)
   | APlus (a1 a2 : aexpr)
-  | AVar (x : string) (*seems to be best*)
+  | AVar (s : string) (*seems to be best*)
   | AMult (a1 a2 : aexpr).
 
   Inductive bexpr : Type := (*boolean expressions*)
   | BTrue
   | BFalse
-  (**| BVar (x : string)  -> only ints for now*)
-  | BNot (b : bexpr)
+  (*| BVar (x : string)  (*have not changed it yet*) *)
+  | BNot (b1 : bexpr)
   | BAnd (b1 b2 : bexpr)
   | BEq (a1 a2 : aexpr)
   | BLessThan (a1 a2 : aexpr).
@@ -185,58 +185,66 @@ Delimit Scope stm_scope with expr. ***)
 
   Definition thread_1 : thread :=  (<< 0 | test_statement >>).
   Check thread_1.
+  Check [thread_1; << 1 | Z ::= 1%stm >>]. (*do not need to declare thread pool! it is just a list of threads *)
+  (*how to make it set though? I cannot figure it out*)
 
-  Inductive thread_pool : Type := Threads (t : set thread).
-  Check Threads [thread_1; << 1 | Z ::= 1%stm >>].
   
-
   (* same variables from Expr- not sure if possible*)
+  (*tests on set*)
   Check empty_set.
   Definition test_set : set nat := 
     [3 ; 2; 3].
   Check test_set.
   Print test_set.
 
-  (*Check (set_remove 3 test_set).  how to remove from set*)
-
-  Inductive vars : Type := Vars (v : set string ). (**this is a lot more dif than i thought*)
- 
-  Definition V1 : vars := Vars [X ; Y].
-  Definition V2 : vars := Vars [Z].
+  Definition V1 : list aexpr := [AVar "X"%string; AVar "Y"%string].
   Check V1.
+  Definition V2 : list aexpr := [AVar "Z"%string].
   Check V2.
 
   (*we represent symPath as list of events (boolean)*)
-  Inductive symEvent : Type := SymEventBool (id : nat) (e : symExprBool) (V1 V2 : vars).
-                                            
-  Inductive symPath : Type := symSeq (e : set symEvent).
-                                  
-  Definition test_expr1 : symExprBool :=
-    (b(2) == true)%symexpr.
-  Definition test_expr2 : symExprBool :=
-    (true && b(5))%symexpr.
-  Check test_expr1.
-
-  Check (SymEventBool 0 test_expr1 V1 V2). (*one event-no notation*)
-
+  Inductive symEvent : Type := SymEventBool (id : nat) (e : symExprBool) (V1 V2 : list aexpr).
   Notation " id (( e -- V1 -- V2 )) " := (SymEventBool id e V1 V2) (at level 50).
   (*cannot use paranthesis, {, ; i do not even know what to use anymore...*)
   (*cannot use ~ either, used for negation, want to avoid using that*)
   (*define scope to be able to use more notation? not much of the difference, still cannot use a lot og signs*)
   (*aaaagh, i give up, maybe it is better to just not use any notation*)
 
+  Definition test_expr1 : symExprBool :=
+    (b(2) == true)%symexpr.
+  Definition test_expr2 : symExprBool :=
+    ( true && b(5) )%symexpr. (*error if paranthesis next to each other because of notation*)
+  Check test_expr1.
+
+  Check (SymEventBool 0 test_expr1 V1 V2). (*one event-no notation*)
   Definition event1 : symEvent := 0 ((test_expr1 -- V1 -- V2)).
-  Definition event2 : symEvent := 1 ((test_expr2 -- V2 -- Vars[X;Y;Z])).
+  Definition event2 : symEvent := 1 ((test_expr2 -- V2 -- [AVar "X"%string; AVar "Y"%string; AVar "Z"%string])).
   Check event1.
   Check event2.
-   
-  Check symSeq [event1; event2; event1]. (*works!*)
+
+  Check [event1 ; event2; event1]. (*a lot better*)
+
 
   (*substitution -> this needs to be a recursive function*)
   (*in the Coq implementation we have both aexpr and bexpr so we need 2 versions of vars*)
-  
+  Fixpoint vars_aexpr (a : aexpr) : set aexpr :=
+    match a with
+    | ANum n => []
+    | AVar s => [AVar s]
+    | APlus a1 a2 => (vars_aexpr a1) ++ (vars_aexpr a2) (*set union*)
+    | AMult a1 a2 => (vars_aexpr a1) ++ (vars_aexpr a2)
+    end.
 
-  
-  
+  Fixpoint vars_bexpr (b : bexpr) : set aexpr :=
+    match b with
+    | BTrue => []
+    | BFalse => []
+    (*| BVar s => [BVar s] *have not changed it yet*)
+    | BNot b1 => [] (*cannot use b as it is a constructor*)
+    | BAnd b1 b2 => []
+    | BEq a1 a2 => (vars_aexpr a1) ++ (vars_aexpr a2)
+    | BLessThan a1 a2 => (vars_aexpr a1) ++ (vars_aexpr a2) 
+    end.
+    
 
 End SymPaths.
