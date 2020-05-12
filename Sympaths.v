@@ -8,47 +8,40 @@ From Coq Require Import omega.Omega.
 From Coq Require Import Lists.List.
 From Coq Require Import Strings.String.
 From Coq Require Import FSets.FMapList.
+From Coq Require Import Lists.ListSet.
 Import ListNotations.
-
-(*We need maps for variables. We try to import the library from Coq*)
 
 (** * Arithmetic and Boolean Expressions *)
 
-
 Module SymPaths. (*NOT Module Type! just module*)
-
-  (*We use int instead of nat taken from ZArith library -> do we need to import more stuff?*)
-  (*Do we need int? -> used int in Maude interpretation, but the values in the paper are nat*)
 
   (*We want ints, booleans and vars to be the basic expressions that we use to build other expressions on.  I diferentiate between boolean and arithmetic expressions and include variables with the arithmetic expressions*)
   (*OBS: we assume that all variables are global and that they only hold numbers. We use strings to represent variables*)
 
-  (*overflow problemer -> hvordan håndterer Coq det?; hvordan kan man representere det i Coq?*)
 
   Inductive aexpr : Type := (*arithmetic expressions based on Integers*)
   | ANum (n : nat)
-  | AVar (x : string)
   | APlus (a1 a2 : aexpr)
+  | AVar (x : string) (*seems to be best*)
   | AMult (a1 a2 : aexpr).
 
   Inductive bexpr : Type := (*boolean expressions*)
   | BTrue
   | BFalse
-  | BVar (x : string)
+  (**| BVar (x : string)  -> only ints for now*)
   | BNot (b : bexpr)
   | BAnd (b1 b2 : bexpr)
   | BEq (a1 a2 : aexpr)
   | BLessThan (a1 a2 : aexpr).
 
-
   (*Add Notation!*)
 
   Coercion ANum : nat >-> aexpr. (*to avoid writing Anum everytime*)
   Coercion AVar : string >-> aexpr.
-  Coercion BVar : string >-> bexpr. (*look here!*)
+  (**Coercion BVar : string >-> bexpr. (*look here!*)  *)
   Definition bool_to_bexpr (b : bool) : bexpr :=
     if b then BTrue else BFalse.
-  Coercion bool_to_bexpr : bool >-> bexpr.
+  Coercion bool_to_bexpr : bool >-> bexpr. 
 
   (*scope*)
   Bind Scope expr_scope with aexpr.
@@ -56,26 +49,18 @@ Module SymPaths. (*NOT Module Type! just module*)
   Delimit Scope expr_scope with expr.
 
   Notation "x + y" := (APlus x y) (at level 50, left associativity) : expr_scope.
+
   Notation "x * y" := (AMult x y) (at level 40, left associativity) : expr_scope.
   Notation "x < y" := (BLessThan x y) (at level 70, no associativity) : expr_scope.
   Notation "x = y" := (BEq x y) (at level 70, no associativity) : expr_scope.
   Notation "x && y" := (BAnd x y) (at level 40, left associativity) : expr_scope.
   Notation "'~' b" := (BNot b) (at level 75, right associativity) : expr_scope.
 
-
-  (*Connection between var and ints: each
-    variable stores an int, we can represent the state as a
-    mapping from strings to [Z], and will use [0] as default value
-    in the store. --> do we neet this?*)
-
-  Check (1 * "X"%string)%expr. (*-> with notation*)
-  Check (true && "X"%string)%expr.
+  Check (1 + "X"%string)%expr. (*-> with notation*)
   Check (APlus 1  3). (*-> without notation*)
   Check (APlus (ANum 1) (ANum 3)). (* -> without coercion*)
 
-  (*Not sure what LInt and LBool are? so I am not defining them*)
-  (*we have no variables defined her, we have to add them!*)
-
+  
   Inductive LInt : Type := x (n: nat).
   Inductive LBool : Type := b (n: nat).
 
@@ -119,10 +104,9 @@ Module SymPaths. (*NOT Module Type! just module*)
   Check (1 = 2)%symexpr.
   Check (true == true)%symexpr.
 
-  (*Module Type Statement(E:Expr). -> this is a module functor, Module that takes one or more Module s of some Module Type s as parameters - > not what we want*)
 
   Check (1 + 2)%expr.
-  Check (1 + "x"%string)%expr.
+  Check (1 + AVar "x")%expr.
 
   Inductive statements : Type :=
   | SAss (x : string) (a : aexpr) (*Cannot use AVar, maybe better to just define it here?
@@ -158,14 +142,15 @@ Delimit Scope stm_scope with expr. ***)
   (*Definition test : statements :=*)
 
   (*Variables we are working with*)
-  Definition W : string := "W".
   Definition X : string := "X".
-  Definition Y: string := "Y".
-  Definition Z : string := "Z".
+  Definition Y : string := "Y".
+  Definition Z : string := "Z". (*changed back, diff from AVar*)
+  Definition W : string := "W". (*we differentiate between var between assign and after!*)
+  (*that should not happen, we could use the same *)
 
   Check (Z ::= 1)%stm.
   Check (Z ::= X)%stm.
-  Check (WHILE ~(Z = 0) DO Y ::= Y * Z END)%stm.
+ (* Check (WHILE ~(W = 0) DO Y ::= Y * Z END)%stm.*)
 
   Definition test_statement : statements :=
     (Z ::= X;;
@@ -179,85 +164,79 @@ Delimit Scope stm_scope with expr. ***)
 
   Inductive procedure : Type :=
   | Proc (s : statements).
-
-  (***Inductive program : Set :=
-  | SProg (p: procedure)
-  | Prog (p1 p2: procedure).***)
-
   Inductive program : Set := Prog (p : list procedure).
-  (*Type : supertype/ what is the diff between Prop and Set really?*)
-  (*If your type could have two or more distinguishable objects, put it in Set otherwise put it in Prop*)
 
   Check Prog(Proc(test_statement) :: Proc(test_statement) :: nil). (*var 1*)
   Check Prog[].
   Check Prog[Proc(test_statement) ; Proc(test_statement)].
   Check Prog[Proc(test_statement)].
 
-  (*Do the procedures need to be different? Lists is a multiset here*)
-
   (*Inductive threadId : Type := id (n: nat).*)
 
   Inductive thread : Type :=
   | TIdle
-  | Thread (id : nat) (s : statements) . (*Should we just use a nat instead of threadId? NO*)
-
-  (*Do we need to define a new scope here? Not doing it for now*)
-
+  | Thread (id : nat) (s : statements) . (*Should we just use a nat instead of threadId? NO? Why*)
 
   Notation "'idle'" := TIdle.
   Notation "'<<' i '|' s '>>'" := (Thread i s).
 
   Check idle.
   Check Thread(0)(test_statement). (*Without taking notation in consideration*)
-  Check (<< 0 | test_statement >>).
 
-  (*Better to declare it as list? -> yes, declare it as list, can be empty*)
-  (* same variables from Expr*)
-  (*Do we use the same vars as from Expr?*)
-  (*I define new ones here*)
+  Definition thread_1 : thread :=  (<< 0 | test_statement >>).
+  Check thread_1.
 
-  Inductive vars : Type :=
-  | Var (x:string)
-  | VarUnion (V1 V2 : vars).
+  Inductive thread_pool : Type := Threads (t : set thread).
+  Check Threads [thread_1; << 1 | Z ::= 1%stm >>].
+  
 
-  Coercion Var : string >-> vars.
-  Notation "{ x }" := (Var x).
-  Notation "V1 ; V2" := (VarUnion V1 V2) (at level 50) : var_scope.
+  (* same variables from Expr- not sure if possible*)
+  Check empty_set.
+  Definition test_set : set nat := 
+    [3 ; 2; 3].
+  Check test_set.
+  Print test_set.
 
-  Bind Scope var_scope with vars.
-  Delimit Scope var_scope with var.
+  (*Check (set_remove 3 test_set).  how to remove from set*)
 
-  Check {"x"%string}.
-  Check (VarUnion {"x"%string} {"y"%string}).
-  Check (Var("x"%string) ;  Var("x"%string))%var. (*why it does not work with {x} ???*)
-  (*do we need a separate module for this?*)
+  Inductive vars : Type := Vars (v : set string ). (**this is a lot more dif than i thought*)
+ 
+  Definition V1 : vars := Vars [X ; Y].
+  Definition V2 : vars := Vars [Z].
+  Check V1.
+  Check V2.
 
+  (*we represent symPath as list of events (boolean)*)
+  Inductive symEvent : Type := SymEventBool (id : nat) (e : symExprBool) (V1 V2 : vars).
+                                            
+  Inductive symPath : Type := symSeq (e : set symEvent).
+                                  
+  Definition test_expr1 : symExprBool :=
+    (b(2) == true)%symexpr.
+  Definition test_expr2 : symExprBool :=
+    (true && b(5))%symexpr.
+  Check test_expr1.
 
-  (*what about event?*)
-  Inductive symPath :=
-  | SymEpsilon
-  | SymSeq (s1 s2 : symPath)
-  | SymEventInt (id : nat) (e : symExprInt) (V1 V2 : vars)
-  | SymEventBool (id : nat) (e : symExprBool) (V1 V2 : vars).
+  Check (SymEventBool 0 test_expr1 V1 V2). (*one event-no notation*)
 
-  Notation "'epsilon'" := SymEpsilon .
-  Check epsilon.
+  Notation " id (( e -- V1 -- V2 )) " := (SymEventBool id e V1 V2) (at level 50).
+  (*cannot use paranthesis, {, ; i do not even know what to use anymore...*)
+  (*cannot use ~ either, used for negation, want to avoid using that*)
+  (*define scope to be able to use more notation? not much of the difference, still cannot use a lot og signs*)
+  (*aaaagh, i give up, maybe it is better to just not use any notation*)
 
-  Notation "s1 , s2" := (SymSeq s1 s2) (at level 50).
-  Notation " id ( e ~ V1 ~ V2 )" := (SymEventInt id e V1 V2) (at level 50). (*does not work yet!*)
-  Notation " id ( e ~ V1 ~ V2 )" := (SymEventBool id e V1 V2) (at level 50).
+  Definition event1 : symEvent := 0 ((test_expr1 -- V1 -- V2)).
+  Definition event2 : symEvent := 1 ((test_expr2 -- V2 -- Vars[X;Y;Z])).
+  Check event1.
+  Check event2.
+   
+  Check symSeq [event1; event2; event1]. (*works!*)
 
-  Check (1 + 2)%symexpr.
+  (*substitution -> this needs to be a recursive function*)
+  (*in the Coq implementation we have both aexpr and bexpr so we need 2 versions of vars*)
+  
 
-  Check (1 + x(2))%symexpr. (* -> does not work! *)
-
-
-  (*Definition test_ev : symExprInt :=
-    (1 + x(2))%symexpr.*)
-
-
-  (* Check (2 ( (1 + x(2))%symexpr ~ {x%string}  ~ {y%string})). *)
-
-  (*Inductive Vars : Set := *)
+  
+  
 
 End SymPaths.
