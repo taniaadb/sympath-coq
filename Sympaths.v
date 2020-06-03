@@ -9,6 +9,7 @@ From Coq Require Import Lists.List.
 From Coq Require Import Strings.String.
 From Coq Require Import FSets.FMapList.
 From Coq Require Import Lists.ListSet.
+Require Import Maps.
 Import ListNotations.
 
 (** * Arithmetic and Boolean Expressions *)
@@ -191,11 +192,14 @@ Delimit Scope stm_scope with expr. ***)
   
   (* same variables from Expr- not sure if possible*)
   (*tests on set*)
-  Check empty_set.
-  Definition test_set : set nat := 
+  
+  Check empty_set nat.
+  Definition test_set : list nat := 
     [3 ; 2; 3].
+  
   Check test_set.
   Print test_set.
+  (* Check [1;2;3] \\ test_set. ---how to remove from a list????*)
 
   Definition V1 : list aexpr := [AVar "X"%string; AVar "Y"%string].
   Check V1.
@@ -245,6 +249,66 @@ Delimit Scope stm_scope with expr. ***)
     | BEq a1 a2 => (vars_aexpr a1) ++ (vars_aexpr a2)
     | BLessThan a1 a2 => (vars_aexpr a1) ++ (vars_aexpr a2) 
     end.
+
+  Definition state := total_map nat.
+
+  Definition empty_st := (_ !-> 0).
+
+(** Now we can add a notation for a "singleton state" with just one
+    variable bound to a value. *)
+  Notation "a '!->' x" := (t_update empty_st a x) (at level 100).
+
+
+  Fixpoint aeval (st : state) (a : aexpr) : nat :=
+  match a with
+  | ANum n => n
+  | AVar v => st v                                (* <--- NEW *)
+  | APlus a1 a2 => (aeval st a1) + (aeval st a2)
+  | AMult a1 a2 => (aeval st a1) * (aeval st a2)
+  end.
+
+  Check aeval empty_st (1 + "X"%string)%expr.
+  Compute aeval empty_st (1 + "X"%string)%expr.
+  
+  Reserved Notation "st '=[' c ']=>' st'"
+                  (at level 40).
+
+  Inductive ceval : statements -> state -> state -> Prop :=
+  | E_Skip : forall st,
+      st =[ SSkip ]=> st
+  | E_Ass  : forall st a1 n x,
+      aeval st a1 = n ->
+      st =[ x ::= a1 ]=> (x !-> n ; st)
+  | E_Seq : forall s1 s2 st st' st'',
+      st  =[ s1 ]=> st'  ->
+      st' =[ s2 ]=> st'' ->
+      st  =[ s1 ;; s2 ]=> st''
+  (***| E_IfTrue : forall st st' b c1 c2,
+      beval st b = true ->
+      st =[ c1 ]=> st' ->
+      st =[ TEST b THEN c1 ELSE c2 FI ]=> st'
+  | E_IfFalse : forall st st' b c1 c2,
+      beval st b = false ->
+      st =[ c2 ]=> st' ->
+      st =[ TEST b THEN c1 ELSE c2 FI ]=> st'
+  | E_WhileFalse : forall b st c,
+      beval st b = false ->
+      st =[ WHILE b DO c END ]=> st
+  | E_WhileTrue : forall st st' st'' b c,
+      beval st b = true ->
+      st  =[ c ]=> st' ->
+      st' =[ WHILE b DO c END ]=> st'' ->
+      st  =[ WHILE b DO c END ]=> st''***)
+
+  where "st =[ c ]=> st'" := (ceval c st st').
+
+  Check empty_st =[ ("X"%string ::= 1) ]=> ("X"%string !-> 1).
+  Example ceval_ex1:
+    empty_st =[ ("X"%string ::= 1) ]=> ("X"%string !-> 1).
+  Proof.
+    apply E_Ass. simpl. reflexivity.
+  Qed. 
     
 
+  
 End SymPaths.
