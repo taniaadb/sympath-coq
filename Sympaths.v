@@ -136,8 +136,8 @@ Delimit Scope stm_scope with expr. ***)
   Notation "'WHILE' b 'DO' s 'END'" := (*cannot use byilt in syntax from Coq, that is why it needs to be written like this*)
     (SWhile b s) (at level 80, right associativity) : stm_scope.
   Notation "'WHILE' b 'FOR' n 'DO' s 'END'" := (*need to separate args*)
-    (SWhile b n s) (at level 80, right associativity) : stm_scope.
-  Notation "'IF' b 'THEN' s1 'ELSE' s2" :=
+    (SNWhile b n s) (at level 80, right associativity) : stm_scope.
+  Notation "'If' b 'THEN' s1 'ELSE' s2" :=
     (SIf b s1 s2) (at level 80, right associativity) : stm_scope.
 
   (*Definition test : statements :=*)
@@ -159,8 +159,19 @@ Delimit Scope stm_scope with expr. ***)
      WHILE ~(Z = 0) DO
        Y ::= Y * Z;;
        Z ::= Z + 1
-     END)%stm.
+                   END)%stm.
 
+  Definition test_nwhile : statements := (***does not work ***)
+    (Z ::= X;;
+    WHILE ~(Z = 0) FOR 4 DO
+       Y ::= Y * Z;;
+       Z ::= Z + 1
+                   END)%stm.
+    
+
+  Definition test_if : statements :=
+    (If ~(Z = 0) THEN Y ::= 1 ELSE Y ::= 2)%stm.
+  Check test_if. 
   (*One more type: program that kan have more proc and each proc has a S: statement*)
 
   Inductive procedure : Type :=
@@ -267,12 +278,26 @@ Delimit Scope stm_scope with expr. ***)
   | AMult a1 a2 => (aeval st a1) * (aeval st a2)
   end.
 
+  Fixpoint beval (st : state) (b : bexpr) : bool :=
+    match b with
+    | BTrue => true
+    | BFalse => false
+    | BNot b1 => negb (beval st b1)
+    | BAnd b1 b2 => andb (beval st b1) (beval st b2)
+    | BEq a1 a2 => (aeval st a1) =? (aeval st a2)
+    | BLessThan a1 a2 => (aeval st a1) <? (aeval st a2)
+    end.
+  
+                
   Check aeval empty_st (1 + "X"%string)%expr.
   Compute aeval empty_st (1 + "X"%string)%expr.
+
+  Compute beval empty_st (1 = 2)%expr.
   
   Reserved Notation "st '=[' c ']=>' st'"
                   (at level 40).
 
+  (***need to add the others *)
   Inductive ceval : statements -> state -> state -> Prop :=
   | E_Skip : forall st,
       st =[ SSkip ]=> st
@@ -282,32 +307,63 @@ Delimit Scope stm_scope with expr. ***)
   | E_Seq : forall s1 s2 st st' st'',
       st  =[ s1 ]=> st'  ->
       st' =[ s2 ]=> st'' ->
-      st  =[ s1 ;; s2 ]=> st''
-  (***| E_IfTrue : forall st st' b c1 c2,
+      st  =[ s1 ;; s2 ]=> st''                                          
+  | E_IfTrue : forall st st' b s1 s2,
       beval st b = true ->
-      st =[ c1 ]=> st' ->
-      st =[ TEST b THEN c1 ELSE c2 FI ]=> st'
-  | E_IfFalse : forall st st' b c1 c2,
+      st =[ s1 ]=> st' ->
+      st =[ If b THEN s1 ELSE s2 ]=> st'
+  | E_IfFalse : forall st st' b s1 s2,
       beval st b = false ->
-      st =[ c2 ]=> st' ->
-      st =[ TEST b THEN c1 ELSE c2 FI ]=> st'
-  | E_WhileFalse : forall b st c,
+      st =[ s2 ]=> st' ->
+      st =[ If b THEN s1 ELSE s2 ]=> st'
+  | E_WhileFalse : forall b st s,
       beval st b = false ->
-      st =[ WHILE b DO c END ]=> st
-  | E_WhileTrue : forall st st' st'' b c,
+      st =[ WHILE b DO s END ]=> st
+  | E_WhileTrue : forall st st' st'' b s,
       beval st b = true ->
-      st  =[ c ]=> st' ->
-      st' =[ WHILE b DO c END ]=> st'' ->
-      st  =[ WHILE b DO c END ]=> st''***)
-
-  where "st =[ c ]=> st'" := (ceval c st st').
+      st  =[ s ]=> st' ->
+      st' =[ WHILE b DO s END ]=> st'' ->
+      st  =[ WHILE b DO s END ]=> st''
+  | E_WhileNFalse : forall b st n s,
+      beval st b = false ->
+      st =[ WHILE b FOR n DO s END ]=> st
+  | E_WhileN0 : forall b st n s,
+      beval st b = true ->
+      n = 0 ->
+      st =[ WHILE b FOR n DO s END ]=> st                                         
+  | E_WhileNTrue : forall st st' st'' b n s,
+      beval st b = true ->
+      n > 0 ->
+      st' =[ WHILE b FOR n-1 DO s END ]=> st'' ->
+      st =[ WHILE b FOR n-1 DO s END ]=> st'' (*** where do we have n-1***)                                                                                 
+  where "st =[ s ]=> st'" := (ceval s st st').
 
   Check empty_st =[ ("X"%string ::= 1) ]=> ("X"%string !-> 1).
   Example ceval_ex1:
     empty_st =[ ("X"%string ::= 1) ]=> ("X"%string !-> 1).
   Proof.
     apply E_Ass. simpl. reflexivity.
-  Qed. 
+  Qed.
+
+  Example ceval_ex2:
+    empty_st =[
+      "X"%string ::= 1 ;;
+      If "X"%string < 1
+         THEN "Y"%string ::= 3
+         ELSE "Z"%string ::= 5
+    ]=> ( "Z"%string !->5 ;  "X"%string !-> 1  ).
+  Proof.
+    apply E_Seq with (X !-> 1).
+    - apply E_Ass. reflexivity.
+    - apply E_IfFalse. reflexivity.
+      apply E_Ass. reflexivity. Qed.
+
+  Example ceval_ex3:
+    empty_st =[
+      "X"%string ::= 2 ;;
+      WHILE ("X"%string > 1) FOR 1 DO
+            "X"%string ::= "X"%string - 1
+    END ]=> ("X"%string !-> 1 ).  
     
 
   
