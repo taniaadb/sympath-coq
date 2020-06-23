@@ -161,7 +161,7 @@ Delimit Scope stm_scope with expr. ***)
        Z ::= Z + 1
                    END)%stm.
 
-  Definition test_nwhile : statements := (***does not work ***)
+  Definition test_nwhile : statements := 
     (Z ::= X;;
     WHILE ~(Z = 0) FOR 4 DO
        Y ::= Y * Z;;
@@ -183,83 +183,6 @@ Delimit Scope stm_scope with expr. ***)
   Check Prog[Proc(test_statement) ; Proc(test_statement)].
   Check Prog[Proc(test_statement)].
 
-  (*Inductive threadId : Type := id (n: nat).*)
-
-  Inductive thread : Type :=
-  | TIdle
-  | Thread (id : nat) (s : statements) . (*Should we just use a nat instead of threadId? NO? Why*)
-
-  Notation "'idle'" := TIdle.
-  Notation "'<<' i '|' s '>>'" := (Thread i s).
-
-  Check idle.
-  Check Thread(0)(test_statement). (*Without taking notation in consideration*)
-
-  Definition thread_1 : thread :=  (<< 0 | test_statement >>).
-  Check thread_1.
-  Check [thread_1; << 1 | Z ::= 1%stm >>]. (*do not need to declare thread pool! it is just a list of threads *)
-  (*how to make it set though? I cannot figure it out*)
-
-  
-  (* same variables from Expr- not sure if possible*)
-  (*tests on set*)
-  
-  Check empty_set nat.
-  Definition test_set : list nat := 
-    [3 ; 2; 3].
-  
-  Check test_set.
-  Print test_set.
-  (* Check [1;2;3] \\ test_set. ---how to remove from a list????*)
-
-  Definition V1 : list aexpr := [AVar "X"%string; AVar "Y"%string].
-  Check V1.
-  Definition V2 : list aexpr := [AVar "Z"%string].
-  Check V2.
-
-  (*we represent symPath as list of events (boolean)*)
-  Inductive symEvent : Type := SymEventBool (id : nat) (e : symExprBool) (V1 V2 : list aexpr).
-  Notation " id (( e -- V1 -- V2 )) " := (SymEventBool id e V1 V2) (at level 50).
-  (*cannot use paranthesis, {, ; i do not even know what to use anymore...*)
-  (*cannot use ~ either, used for negation, want to avoid using that*)
-  (*define scope to be able to use more notation? not much of the difference, still cannot use a lot og signs*)
-  (*aaaagh, i give up, maybe it is better to just not use any notation*)
-
-  Definition test_expr1 : symExprBool :=
-    (b(2) == true)%symexpr.
-  Definition test_expr2 : symExprBool :=
-    ( true && b(5) )%symexpr. (*error if paranthesis next to each other because of notation*)
-  Check test_expr1.
-
-  Check (SymEventBool 0 test_expr1 V1 V2). (*one event-no notation*)
-  Definition event1 : symEvent := 0 ((test_expr1 -- V1 -- V2)).
-  Definition event2 : symEvent := 1 ((test_expr2 -- V2 -- [AVar "X"%string; AVar "Y"%string; AVar "Z"%string])).
-  Check event1.
-  Check event2.
-
-  Check [event1 ; event2; event1]. (*a lot better*)
-
-
-  (*substitution -> this needs to be a recursive function*)
-  (*in the Coq implementation we have both aexpr and bexpr so we need 2 versions of vars*)
-  Fixpoint vars_aexpr (a : aexpr) : set aexpr :=
-    match a with
-    | ANum n => []
-    | AVar s => [AVar s]
-    | APlus a1 a2 => (vars_aexpr a1) ++ (vars_aexpr a2) (*set union*)
-    | AMult a1 a2 => (vars_aexpr a1) ++ (vars_aexpr a2)
-    end.
-
-  Fixpoint vars_bexpr (b : bexpr) : set aexpr :=
-    match b with
-    | BTrue => []
-    | BFalse => []
-    (*| BVar s => [BVar s] *have not changed it yet*)
-    | BNot b1 => [] (*cannot use b as it is a constructor*)
-    | BAnd b1 b2 => []
-    | BEq a1 a2 => (vars_aexpr a1) ++ (vars_aexpr a2)
-    | BLessThan a1 a2 => (vars_aexpr a1) ++ (vars_aexpr a2) 
-    end.
 
   Definition state := total_map nat.
 
@@ -273,7 +196,7 @@ Delimit Scope stm_scope with expr. ***)
   Fixpoint aeval (st : state) (a : aexpr) : nat :=
   match a with
   | ANum n => n
-  | AVar v => st v                                (* <--- NEW *)
+  | AVar v => st v                                (* <--- NEW , this is the state!*)
   | APlus a1 a2 => (aeval st a1) + (aeval st a2)
   | AMult a1 a2 => (aeval st a1) * (aeval st a2)
   end.
@@ -284,9 +207,10 @@ Delimit Scope stm_scope with expr. ***)
     | BFalse => false
     | BNot b1 => negb (beval st b1)
     | BAnd b1 b2 => andb (beval st b1) (beval st b2)
-    | BEq a1 a2 => (aeval st a1) =? (aeval st a2)
+    | BEq a1 a2 => (aeval st a1) =? (aeval st a2) (***does this work for strings*)
     | BLessThan a1 a2 => (aeval st a1) <? (aeval st a2)
     end.
+  (*** we need to update the state*)
   
                 
   Check aeval empty_st (1 + "X"%string)%expr.
@@ -358,12 +282,12 @@ Delimit Scope stm_scope with expr. ***)
     - apply E_IfFalse. reflexivity.
       apply E_Ass. reflexivity. Qed.
 
-  Example ceval_ex3:
+  (***Example ceval_ex3:
     empty_st =[
       "X"%string ::= 2 ;;
-      WHILE ("X"%string > 1) FOR 1 DO
+      WHILE ("X"%string > 1) DO
             "X"%string ::= "X"%string - 1
-    END ]=> ("X"%string !-> 1 ).  
+    END ]=> ("X"%string !-> 1 ).  (***does not work yet*) *)
     
 
   
