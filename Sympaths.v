@@ -191,6 +191,9 @@ Delimit Scope stm_scope with expr. ***)
 (** Now we can add a notation for a "singleton state" with just one
     variable bound to a value. *)
   Notation "a '!->' x" := (t_update empty_st a x) (at level 100).
+  Compute empty_st .
+  Compute empty_st "x"%string .
+  Compute (X !-> 3 ; X !-> 2 ; empty_st) X .
 
 
   Fixpoint aeval (st : state) (a : aexpr) : nat :=
@@ -212,11 +215,15 @@ Delimit Scope stm_scope with expr. ***)
     end.
   (*** we need to update the state*)
   
-                
+
+  Check 3 = 4.
   Check aeval empty_st (1 + "X"%string)%expr.
   Compute aeval empty_st (1 + "X"%string)%expr.
 
   Compute beval empty_st (1 = 2)%expr.
+  Compute beval ( X !-> 1 ; empty_st)  (X = 1)%expr.
+  Compute aeval ( X !-> 2 ; Y !-> 3 ; empty_st) (X + Y)%expr.
+  Compute beval ( X !-> 2 ; Y !-> 5 ; empty_st) (X < Y)%expr.
   
   Reserved Notation "st '=[' c ']=>' st'"
                   (at level 40).
@@ -255,40 +262,66 @@ Delimit Scope stm_scope with expr. ***)
       beval st b = true ->
       n = 0 ->
       st =[ WHILE b FOR n DO s END ]=> st                                         
-  | E_WhileNTrue : forall st st' st'' b n s,
+  | E_WhileNTrue : forall st st' st'' b n s, (*** need to decrease the n*)
       beval st b = true ->
       n > 0 ->
-      st' =[ WHILE b FOR n-1 DO s END ]=> st'' ->
-      st =[ WHILE b FOR n-1 DO s END ]=> st'' (*** where do we have n-1***)                                                                                 
+      st =[ s ]=> st' ->
+      st' =[ WHILE b FOR n DO s END ]=> st'' -> (*** cannot decrease the n here*)
+      st =[ WHILE b FOR n DO s END ]=> st''                                                                                 
   where "st =[ s ]=> st'" := (ceval s st st').
 
-  Check empty_st =[ ("X"%string ::= 1) ]=> ("X"%string !-> 1).
+  Check empty_st =[ (X ::= 1) ]=> (X !-> 1).
   Example ceval_ex1:
-    empty_st =[ ("X"%string ::= 1) ]=> ("X"%string !-> 1).
+    empty_st =[ (X ::= 1) ]=> (X !-> 1).
   Proof.
     apply E_Ass. simpl. reflexivity.
   Qed.
 
+  Example ceval_ex5:
+    (X !-> 1) =[ (Y ::= 3) ]=> ( Y !-> 3; X !-> 1).
+  Proof.
+    apply E_Ass. reflexivity. Qed. 
+
+  Example ceval_ex4:
+    empty_st =[ (X ::= 1 ) ;; (Y ::= 3) ]=> ( Y !-> 3; X !-> 1).
+  Proof.
+    apply E_Seq with ( X !-> 1 ). apply E_Ass. reflexivity.
+    -apply E_Ass. reflexivity. Qed. 
+
   Example ceval_ex2:
     empty_st =[
-      "X"%string ::= 1 ;;
-      If "X"%string < 1
-         THEN "Y"%string ::= 3
-         ELSE "Z"%string ::= 5
-    ]=> ( "Z"%string !->5 ;  "X"%string !-> 1  ).
+      X ::= 1 ;;
+      If X < 1
+         THEN Y ::= 3
+         ELSE Z ::= 5
+    ]=> ( Z !->5 ;  X !-> 1  ).
   Proof.
     apply E_Seq with (X !-> 1).
     - apply E_Ass. reflexivity.
     - apply E_IfFalse. reflexivity.
       apply E_Ass. reflexivity. Qed.
 
-  (***Example ceval_ex3:
+  Example ceval_ex3:
     empty_st =[
-      "X"%string ::= 2 ;;
-      WHILE ("X"%string > 1) DO
-            "X"%string ::= "X"%string - 1
-    END ]=> ("X"%string !-> 1 ).  (***does not work yet*) *)
-    
+      X ::= 0 ;;
+      WHILE (X < 1) DO
+            X ::= X + 1
+                        END ]=> (X !-> 1 ; X !-> 0 ).
+  Proof.
+    apply E_Seq with (X !-> 0). apply E_Ass. reflexivity.
+    -apply E_WhileTrue with (X !-> 1 ; X !-> 0). reflexivity.
+     *apply E_Ass. simpl. reflexivity.
+     *apply E_WhileFalse. reflexivity. Qed.
+
+  (***Example ceval_ex6:
+    empty_st =[
+      X ::= 0 ;;
+      WHILE (X < 3) FOR 2 DO
+        X ::= X + 1
+                    END ]=> (X !-> 2 ; X !-> 1 ; X !-> 0 ).
+  Proof.
+    apply E_Seq with (X !-> 0). apply E_Ass. reflexivity.
+    -apply E_WhileNTrue with (X !-> 1 ; X !-> 0). simpl. *)
 
   
 End SymPaths.
