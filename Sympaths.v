@@ -112,8 +112,8 @@ Module SymPaths.
   | SAss (x : string) (a : aexpr) 
   | SSkip
   | SIf (b : bexpr) (s1 s2 : statements)
-  (*| SWhile (b : bexpr) (s : statements) *)
-  | SNWhile (b : bexpr) (n : nat) (s : statements)
+  | SWhile (b : bexpr) (s : statements) 
+  (*| SNWhile (b : bexpr) (n : nat) (s : statements) *)
   | SSeq (s1 s2 : statements).
 
   Bind Scope stm_scope with statements.
@@ -125,10 +125,10 @@ Module SymPaths.
     (SAss x a) (at level 60) : stm_scope.
   Notation "s1 ;; s2" := 
     (SSeq s1 s2) (at level 80, right associativity) : stm_scope.
-  (*Notation "'WHILE' b 'DO' s 'END'" := 
-    (SWhile b s) (at level 80, right associativity) : stm_scope. *)
-  Notation "'WHILE' b 'FOR' n 'DO' s 'END'" := 
-    (SNWhile b n s) (at level 80, right associativity) : stm_scope. 
+  Notation "'WHILE' b 'DO' s 'END'" := 
+    (SWhile b s) (at level 80, right associativity) : stm_scope. 
+ (* Notation "'WHILE' b 'FOR' n 'DO' s 'END'" := 
+    (SNWhile b n s) (at level 80, right associativity) : stm_scope.  *)
   Notation "'If' b 'THEN' s1 'ELSE' s2" :=
     (SIf b s1 s2) (at level 80, right associativity) : stm_scope.
 
@@ -141,12 +141,12 @@ Module SymPaths.
 
   Check (Z ::= 1)%stm.
   Check (Z ::= X)%stm.
-  Check (WHILE ~(W = 0) FOR 1 DO Y ::= Y * Z END)%stm.
+  Check (WHILE ~(W = 0) DO Y ::= Y * Z END)%stm.
 
   Definition test_statement : statements :=
     (Z ::= X;;
      Y ::= 1;;
-     WHILE ~(Z = 0) FOR 1 DO
+     WHILE ~(Z = 0) DO
        Y ::= Y * Z;;
        Z ::= Z + 1
                    END)%stm.
@@ -235,14 +235,14 @@ Module SymPaths.
       beval st cond = false ->
       st =[ s2 ]=> st' ->
       st =[ If cond THEN s1 ELSE s2 ]=> st'
-  | E_WhileNFalse : forall cond st n s,
+  | E_WhileFalse : forall cond st s,
       beval st cond = false ->
-      st =[ WHILE cond  FOR n DO s END ]=> st
-  | E_WhileNTrue : forall st st' st'' cond n s,
+      st =[ WHILE cond DO s END ]=> st
+  | E_WhileTrue : forall st st' st'' cond s,
       beval st cond = true ->
       st  =[ s ]=> st' ->
-      st' =[ WHILE cond FOR n DO s END ]=> st'' ->
-      st  =[ WHILE cond FOR n DO s END ]=> st''
+      st' =[ WHILE cond DO s END ]=> st'' ->
+      st  =[ WHILE cond DO s END ]=> st''
   (***| E_WhileNFalse : forall b st n s,
       beval st b = false ->
       st =[ WHILE b FOR n DO s END ]=> st
@@ -259,24 +259,24 @@ Module SymPaths.
   where "st =[ s ]=> st'" := (ceval_relation s st st').
 
   Check empty_st =[ (X ::= 1) ]=> (X !-> 1).
-  Example ceval_ex1:
+  Example ceval_relation_ex1:
     empty_st =[ (X ::= 1) ]=> (X !-> 1).
   Proof.
     apply E_Ass. simpl. reflexivity.
   Qed.
 
-  Example ceval_ex5:
+  Example ceval_relation_ex2:
     (X !-> 1) =[ (Y ::= 3) ]=> ( Y !-> 3; X !-> 1).
   Proof.
     apply E_Ass. reflexivity. Qed. 
 
-  Example ceval_ex4:
+  Example ceval_relation_ex3:
     empty_st =[ (X ::= 1 ) ;; (Y ::= 3) ]=> ( Y !-> 3; X !-> 1).
   Proof.
     apply E_Seq with ( X !-> 1 ). apply E_Ass. reflexivity.
     -apply E_Ass. reflexivity. Qed. 
 
-  Example ceval_ex2:
+  Example ceval_relation_ex4:
     empty_st =[
       X ::= 1 ;;
       If X < 1
@@ -289,17 +289,17 @@ Module SymPaths.
     - apply E_IfFalse. reflexivity.
       apply E_Ass. reflexivity. Qed.
 
-  Example ceval_ex3:
+  Example ceval_relation_ex5:
     empty_st =[
       X ::= 0 ;;
-      WHILE (X < 1) FOR 1 DO
+      WHILE (X < 1) DO
             X ::= X + 1
                         END ]=> (X !-> 1 ; X !-> 0 ).
   Proof.
     apply E_Seq with (X !-> 0). apply E_Ass. reflexivity.
-    -apply E_WhileNTrue with (X !-> 1 ; X !-> 0). reflexivity.
+    -apply E_WhileTrue with (X !-> 1 ; X !-> 0). reflexivity.
      *apply E_Ass. simpl. reflexivity.
-     *apply E_WhileNFalse. simpl. reflexivity. Qed. 
+     *apply E_WhileFalse. simpl. reflexivity. Qed. 
       
   (*Evaluation as a function - step-indexed While but here we count down for all*)
   (*do we want the optional param or do we know how long the while will run *)
@@ -333,20 +333,24 @@ Module SymPaths.
     WHILE (X < 3) DO
        X ::= X + 1
     END.
-    
-  (*Example ceval_function1:*)
-  Set Printing Coercions.
-  Print stm_while.
-  Unset Printing Coercions.
-  
-  Compute (ceval_function empty_st stm_while 2) X .
-  Proof.  
-              
-              
-        
 
-  
- 
+  (*OBS: as here we are dealing with a function, these are a lot easier to prove *)
+  Example ceval_function_ex1 :
+    ceval_function empty_st stm_while 4 = (X !-> 2 ; X !-> 1 ; X !-> 0).
+  Proof. simpl. reflexivity. Qed.
 
-  
+  (* these evaluations are equivalent, can include a proof of equivalence:*)
+  (**
+Theorem cevalR_equiv_cevalR : forall c st st',
+st =[ stm ]=> st' 
+<-> exists i, ceval_function st stm i = st' .
+   *)       
+
+  Theorem cevalF_deterministic : forall s st st1 st2 i,
+      ceval_function st s i = st1 ->
+      ceval_function st s i = st2 ->
+      st1 = st2 .
+  Proof.
+    intros. rewrite <- H.  rewrite <- H0. reflexivity. Qed. 
+     
 End SymPaths.
