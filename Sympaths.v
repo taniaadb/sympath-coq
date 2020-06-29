@@ -14,22 +14,21 @@ Import ListNotations.
 
 (** * Arithmetic and Boolean Expressions *)
 
-Module SymPaths. (*NOT Module Type! just module*)
+Module SymPaths. 
 
   (*We want ints, booleans and vars to be the basic expressions that we use to build other expressions on.  I diferentiate between boolean and arithmetic expressions and include variables with the arithmetic expressions*)
   (*OBS: we assume that all variables are global and that they only hold numbers. We use strings to represent variables*)
 
 
-  Inductive aexpr : Type := (*arithmetic expressions based on Integers*)
+  Inductive aexpr : Type := 
   | ANum (n : nat)
   | APlus (a1 a2 : aexpr)
-  | AVar (s : string) (*seems to be best*)
+  | AVar (s : string) 
   | AMult (a1 a2 : aexpr).
 
   Inductive bexpr : Type := (*boolean expressions*)
   | BTrue
   | BFalse
-  (*| BVar (x : string)  (*have not changed it yet*) *)
   | BNot (b1 : bexpr)
   | BAnd (b1 b2 : bexpr)
   | BEq (a1 a2 : aexpr)
@@ -39,7 +38,6 @@ Module SymPaths. (*NOT Module Type! just module*)
 
   Coercion ANum : nat >-> aexpr. (*to avoid writing Anum everytime*)
   Coercion AVar : string >-> aexpr.
-  (**Coercion BVar : string >-> bexpr. (*look here!*)  *)
   Definition bool_to_bexpr (b : bool) : bexpr :=
     if b then BTrue else BFalse.
   Coercion bool_to_bexpr : bool >-> bexpr. 
@@ -109,83 +107,74 @@ Module SymPaths. (*NOT Module Type! just module*)
   Check (1 + 2)%expr.
   Check (1 + AVar "x")%expr.
 
+  (*We need to decide how the while works*)
   Inductive statements : Type :=
-  | SAss (x : string) (a : aexpr) (*Cannot use AVar, maybe better to just define it here?
-                                   No connection between var here and var in expr which
-                                   is a bit unfortunate*)
+  | SAss (x : string) (a : aexpr) 
   | SSkip
   | SIf (b : bexpr) (s1 s2 : statements)
-  | SWhile (b : bexpr) (s : statements)
-  | SNWhile (b : bexpr) (n : nat) (s : statements) (*more correct to use aexpr?*)
+  (*| SWhile (b : bexpr) (s : statements) *)
+  | SNWhile (b : bexpr) (n : nat) (s : statements)
   | SSeq (s1 s2 : statements).
 
   Bind Scope stm_scope with statements.
-  (***Bind Scope expr_scope with bexpr.
-Bind Scope expr_scope with bexpr.
-Delimit Scope stm_scope with expr. ***)
-
   Delimit Scope stm_scope with stm.
-  (*better to have own scope with access to expr scope!*)
 
   Notation "'skip'" :=
-    SSkip : expr_scope.
-  Notation "x '::=' a" := (*cannot use :=*)
+    (SSkip) (at level 60) : stm_scope.
+  Notation "x '::=' a" := 
     (SAss x a) (at level 60) : stm_scope.
-  Notation "s1 ;; s2" := (*cannot use ;*)
+  Notation "s1 ;; s2" := 
     (SSeq s1 s2) (at level 80, right associativity) : stm_scope.
-  Notation "'WHILE' b 'DO' s 'END'" := (*cannot use byilt in syntax from Coq, that is why it needs to be written like this*)
-    (SWhile b s) (at level 80, right associativity) : stm_scope.
-  Notation "'WHILE' b 'FOR' n 'DO' s 'END'" := (*need to separate args*)
-    (SNWhile b n s) (at level 80, right associativity) : stm_scope.
+  (*Notation "'WHILE' b 'DO' s 'END'" := 
+    (SWhile b s) (at level 80, right associativity) : stm_scope. *)
+  Notation "'WHILE' b 'FOR' n 'DO' s 'END'" := 
+    (SNWhile b n s) (at level 80, right associativity) : stm_scope. 
   Notation "'If' b 'THEN' s1 'ELSE' s2" :=
     (SIf b s1 s2) (at level 80, right associativity) : stm_scope.
-
-  (*Definition test : statements :=*)
 
   (*Variables we are working with*)
   Definition X : string := "X".
   Definition Y : string := "Y".
-  Definition Z : string := "Z". (*changed back, diff from AVar*)
-  Definition W : string := "W". (*we differentiate between var between assign and after!*)
-  (*that should not happen, we could use the same *)
+  Definition Z : string := "Z".
+  Definition W : string := "W". 
+
 
   Check (Z ::= 1)%stm.
   Check (Z ::= X)%stm.
- (* Check (WHILE ~(W = 0) DO Y ::= Y * Z END)%stm.*)
+  Check (WHILE ~(W = 0) FOR 1 DO Y ::= Y * Z END)%stm.
 
   Definition test_statement : statements :=
     (Z ::= X;;
      Y ::= 1;;
-     WHILE ~(Z = 0) DO
+     WHILE ~(Z = 0) FOR 1 DO
        Y ::= Y * Z;;
        Z ::= Z + 1
                    END)%stm.
 
-  Definition test_nwhile : statements := 
+ (* Definition test_nwhile : statements := 
     (Z ::= X;;
     WHILE ~(Z = 0) FOR 4 DO
        Y ::= Y * Z;;
        Z ::= Z + 1
-                   END)%stm.
+                   END)%stm. *)
     
 
   Definition test_if : statements :=
     (If ~(Z = 0) THEN Y ::= 1 ELSE Y ::= 2)%stm.
   Check test_if. 
-  (*One more type: program that kan have more proc and each proc has a S: statement*)
+
 
   Inductive procedure : Type :=
   | Proc (s : statements).
   Inductive program : Set := Prog (p : list procedure).
 
-  Check Prog(Proc(test_statement) :: Proc(test_statement) :: nil). (*var 1*)
+  Check Prog(Proc(test_statement) :: Proc(test_statement) :: nil). 
   Check Prog[].
   Check Prog[Proc(test_statement) ; Proc(test_statement)].
   Check Prog[Proc(test_statement)].
 
 
   Definition state := total_map nat.
-
   Definition empty_st := (_ !-> 0).
 
 (** Now we can add a notation for a "singleton state" with just one
@@ -195,11 +184,11 @@ Delimit Scope stm_scope with expr. ***)
   Compute empty_st "x"%string .
   Compute (X !-> 3 ; X !-> 2 ; empty_st) X .
 
-
+(*Can be done with relations as well as an alternative*)
   Fixpoint aeval (st : state) (a : aexpr) : nat :=
   match a with
   | ANum n => n
-  | AVar v => st v                                (* <--- NEW , this is the state!*)
+  | AVar v => st v                                
   | APlus a1 a2 => (aeval st a1) + (aeval st a2)
   | AMult a1 a2 => (aeval st a1) * (aeval st a2)
   end.
@@ -210,10 +199,9 @@ Delimit Scope stm_scope with expr. ***)
     | BFalse => false
     | BNot b1 => negb (beval st b1)
     | BAnd b1 b2 => andb (beval st b1) (beval st b2)
-    | BEq a1 a2 => (aeval st a1) =? (aeval st a2) (***does this work for strings*)
+    | BEq a1 a2 => (aeval st a1) =? (aeval st a2) 
     | BLessThan a1 a2 => (aeval st a1) <? (aeval st a2)
     end.
-  (*** we need to update the state*)
   
 
   Check 3 = 4.
@@ -228,34 +216,34 @@ Delimit Scope stm_scope with expr. ***)
   Reserved Notation "st '=[' c ']=>' st'"
                   (at level 40).
 
-  (***need to add the others *)
-  Inductive ceval : statements -> state -> state -> Prop :=
+  (**This version has the normal while *)
+  Inductive ceval_relation : statements -> state -> state -> Prop :=
   | E_Skip : forall st,
-      st =[ SSkip ]=> st
-  | E_Ass  : forall st a1 n x,
+      st =[ skip ]=> st
+  | E_Ass  : forall st a1 n l,
       aeval st a1 = n ->
-      st =[ x ::= a1 ]=> (x !-> n ; st)
+      st =[ l ::= a1 ]=> (l !-> n ; st)
   | E_Seq : forall s1 s2 st st' st'',
       st  =[ s1 ]=> st'  ->
       st' =[ s2 ]=> st'' ->
       st  =[ s1 ;; s2 ]=> st''                                          
-  | E_IfTrue : forall st st' b s1 s2,
-      beval st b = true ->
+  | E_IfTrue : forall st st' cond s1 s2,
+      beval st cond = true ->
       st =[ s1 ]=> st' ->
-      st =[ If b THEN s1 ELSE s2 ]=> st'
-  | E_IfFalse : forall st st' b s1 s2,
-      beval st b = false ->
+      st =[ If cond THEN s1 ELSE s2 ]=> st'
+  | E_IfFalse : forall st st' cond s1 s2,
+      beval st cond = false ->
       st =[ s2 ]=> st' ->
-      st =[ If b THEN s1 ELSE s2 ]=> st'
-  | E_WhileFalse : forall b st s,
-      beval st b = false ->
-      st =[ WHILE b DO s END ]=> st
-  | E_WhileTrue : forall st st' st'' b s,
-      beval st b = true ->
+      st =[ If cond THEN s1 ELSE s2 ]=> st'
+  | E_WhileNFalse : forall cond st n s,
+      beval st cond = false ->
+      st =[ WHILE cond  FOR n DO s END ]=> st
+  | E_WhileNTrue : forall st st' st'' cond n s,
+      beval st cond = true ->
       st  =[ s ]=> st' ->
-      st' =[ WHILE b DO s END ]=> st'' ->
-      st  =[ WHILE b DO s END ]=> st''
-  | E_WhileNFalse : forall b st n s,
+      st' =[ WHILE cond FOR n DO s END ]=> st'' ->
+      st  =[ WHILE cond FOR n DO s END ]=> st''
+  (***| E_WhileNFalse : forall b st n s,
       beval st b = false ->
       st =[ WHILE b FOR n DO s END ]=> st
   | E_WhileN0 : forall b st n s,
@@ -264,11 +252,11 @@ Delimit Scope stm_scope with expr. ***)
       st =[ WHILE b FOR n DO s END ]=> st                                         
   | E_WhileNTrue : forall st st' st'' b n s, (*** need to decrease the n*)
       beval st b = true ->
-      n > 0 ->
+      n = (S n') ->
       st =[ s ]=> st' ->
-      st' =[ WHILE b FOR n DO s END ]=> st'' -> (*** cannot decrease the n here*)
-      st =[ WHILE b FOR n DO s END ]=> st''                                                                                 
-  where "st =[ s ]=> st'" := (ceval s st st').
+      st' =[ WHILE b FOR n' DO s END ]=> st'' -> (*** cannot decrease the n here*)
+      st =[ WHILE b FOR n DO s END ]=> st''  *)                                                                             
+  where "st =[ s ]=> st'" := (ceval_relation s st st').
 
   Check empty_st =[ (X ::= 1) ]=> (X !-> 1).
   Example ceval_ex1:
@@ -304,24 +292,61 @@ Delimit Scope stm_scope with expr. ***)
   Example ceval_ex3:
     empty_st =[
       X ::= 0 ;;
-      WHILE (X < 1) DO
+      WHILE (X < 1) FOR 1 DO
             X ::= X + 1
                         END ]=> (X !-> 1 ; X !-> 0 ).
   Proof.
     apply E_Seq with (X !-> 0). apply E_Ass. reflexivity.
-    -apply E_WhileTrue with (X !-> 1 ; X !-> 0). reflexivity.
+    -apply E_WhileNTrue with (X !-> 1 ; X !-> 0). reflexivity.
      *apply E_Ass. simpl. reflexivity.
-     *apply E_WhileFalse. reflexivity. Qed.
+     *apply E_WhileNFalse. simpl. reflexivity. Qed. 
+      
+  (*Evaluation as a function - step-indexed While but here we count down for all*)
+  (*do we want the optional param or do we know how long the while will run *)
+  Open Scope stm_scope. 
+  Fixpoint ceval_function (st : state) (s : statements) (n : nat) : state :=
+    match n with
+    | 0 => st (* here is the issue - what do we return -> pb is it counts down for everything*)
+    | S n' =>
+      match s with
+      | skip => st
+      | l ::= a =>
+              (l !-> aeval st a ; st)
+      | s1 ;; s2 =>
+              let st' := ceval_function st s1 n' in
+                ceval_function st' s2 n'
+      | If cond THEN s1 ELSE s2 =>
+              if (beval st cond)
+                then ceval_function st s1 n'
+                else ceval_function st s2 n'
+      | WHILE cond DO s1 END =>
+              if (beval st cond)
+                then let st' := ceval_function st s1 n' in
+                   ceval_function st' s n'
+                else st
+      end
+    end.
+  Close Scope stm_scope. 
+  
+  Definition stm_while : statements :=
+    X ::= 0 ;;
+    WHILE (X < 3) DO
+       X ::= X + 1
+    END.
+    
+  (*Example ceval_function1:*)
+  Set Printing Coercions.
+  Print stm_while.
+  Unset Printing Coercions.
+  
+  Compute (ceval_function empty_st stm_while 2) X .
+  Proof.  
+              
+              
+        
 
-  (***Example ceval_ex6:
-    empty_st =[
-      X ::= 0 ;;
-      WHILE (X < 3) FOR 2 DO
-        X ::= X + 1
-                    END ]=> (X !-> 2 ; X !-> 1 ; X !-> 0 ).
-  Proof.
-    apply E_Seq with (X !-> 0). apply E_Ass. reflexivity.
-    -apply E_WhileNTrue with (X !-> 1 ; X !-> 0). simpl. *)
+  
+ 
 
   
 End SymPaths.
