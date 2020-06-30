@@ -243,19 +243,7 @@ Module SymPaths.
       st  =[ s ]=> st' ->
       st' =[ WHILE cond DO s END ]=> st'' ->
       st  =[ WHILE cond DO s END ]=> st''
-  (***| E_WhileNFalse : forall b st n s,
-      beval st b = false ->
-      st =[ WHILE b FOR n DO s END ]=> st
-  | E_WhileN0 : forall b st n s,
-      beval st b = true ->
-      n = 0 ->
-      st =[ WHILE b FOR n DO s END ]=> st                                         
-  | E_WhileNTrue : forall st st' st'' b n s, (*** need to decrease the n*)
-      beval st b = true ->
-      n = (S n') ->
-      st =[ s ]=> st' ->
-      st' =[ WHILE b FOR n' DO s END ]=> st'' -> (*** cannot decrease the n here*)
-      st =[ WHILE b FOR n DO s END ]=> st''  *)                                                                             
+                                                                        
   where "st =[ s ]=> st'" := (ceval_relation s st st').
 
   Check empty_st =[ (X ::= 1) ]=> (X !-> 1).
@@ -299,7 +287,24 @@ Module SymPaths.
     apply E_Seq with (X !-> 0). apply E_Ass. reflexivity.
     -apply E_WhileTrue with (X !-> 1 ; X !-> 0). reflexivity.
      *apply E_Ass. simpl. reflexivity.
-     *apply E_WhileFalse. simpl. reflexivity. Qed. 
+     *apply E_WhileFalse. simpl. reflexivity. Qed.
+
+  Theorem cevalR_deterministic : forall s st st1 st2,
+      st =[ s ]=> st1 ->
+      st =[ s ]=> st2 ->
+      st1 = st2. 
+  Proof.
+    intros. generalize dependent st2. induction H.
+    -intros. inversion H0.  (* what do we need for thisto be true *) reflexivity.
+    - intros. inversion H0. assert (n0 = n). rewrite H in H5. symmetry in H5. assumption.
+      rewrite H6 . reflexivity.
+    - intros. inversion H1. assert (st' = st'0). apply IHceval_relation1 in H4. assumption. rewrite <- H8 in H7. apply IHceval_relation2 in H7. assumption.
+    - intros. inversion H1. apply IHceval_relation in H8. assumption. rewrite H in H7. discriminate H7.
+    - intros. inversion H1. rewrite H in H7. discriminate H7. apply IHceval_relation in H8. assumption.
+    - intros. inversion H0. reflexivity. rewrite H in H3. discriminate H3.
+    - intros. inversion H2. rewrite <- H6 in H7. rewrite H in H7. discriminate H7.
+      assert (st'0 = st'). apply IHceval_relation1 in H6. symmetry in H6. assumption.  rewrite H10 in H9. apply IHceval_relation2 in H9. assumption. Qed.  
+ 
       
   (*Evaluation as a function - step-indexed While but here we count down for all*)
   (*do we want the optional param or do we know how long the while will run *)
