@@ -261,7 +261,7 @@ Module SymPaths.
   Example ceval_relation_ex3:
     empty_st =[ (X ::= 1 ) ;; (Y ::= 3) ]=> ( Y !-> 3; X !-> 1).
   Proof.
-    apply E_Seq with ( X !-> 1 ). apply E_Ass. reflexivity.
+    eapply E_Seq. apply E_Ass. reflexivity.
     -apply E_Ass. reflexivity. Qed. 
 
   Example ceval_relation_ex4:
@@ -272,7 +272,7 @@ Module SymPaths.
          ELSE Z ::= 5
     ]=> ( Z !->5 ;  X !-> 1  ).
   Proof.
-    apply E_Seq with (X !-> 1).
+    eapply E_Seq.
     - apply E_Ass. reflexivity.
     - apply E_IfFalse. reflexivity.
       apply E_Ass. reflexivity. Qed.
@@ -284,8 +284,8 @@ Module SymPaths.
             X ::= X + 1
                         END ]=> (X !-> 1 ; X !-> 0 ).
   Proof.
-    apply E_Seq with (X !-> 0). apply E_Ass. reflexivity.
-    -apply E_WhileTrue with (X !-> 1 ; X !-> 0). reflexivity.
+    eapply E_Seq. apply E_Ass. reflexivity.
+    -eapply E_WhileTrue. reflexivity.
      *apply E_Ass. simpl. reflexivity.
      *apply E_WhileFalse. simpl. reflexivity. Qed.
 
@@ -303,9 +303,35 @@ Module SymPaths.
     - intros. inversion H1. rewrite H in H7. discriminate H7. apply IHceval_relation in H8. assumption.
     - intros. inversion H0. reflexivity. rewrite H in H3. discriminate H3.
     - intros. inversion H2. rewrite <- H6 in H7. rewrite H in H7. discriminate H7.
-      assert (st'0 = st'). apply IHceval_relation1 in H6. symmetry in H6. assumption.  rewrite H10 in H9. apply IHceval_relation2 in H9. assumption. Qed.  
- 
-      
+      assert (st'0 = st'). apply IHceval_relation1 in H6. symmetry in H6. assumption.  rewrite H10 in H9. apply IHceval_relation2 in H9. assumption. Qed.
+
+  (*Simplified automated version, sesnsitive to naming, but more robust*)
+
+  Ltac inv H := inversion H; subst; clear H.
+  Ltac rewrite_inv H1 H2 := rewrite H1 in H2; inv H2.
+  Ltac find_rewrite_inv :=
+    match goal with
+      H1: ?E = true,
+      H2: ?E = false
+      |- _ => rewrite_inv H1 H2
+    end.
+  Ltac find_eqn :=
+    match goal with
+      H1: forall x, ?P x -> ?L = ?R,
+      H2: ?P ?X
+      |- _ => rewrite (H1 X H2) in *
+  end.
+   Theorem cevalR_deterministic_auto : forall s st st1 st2,
+      st =[ s ]=> st1 ->
+      st =[ s ]=> st2 ->
+                  st1 = st2.
+   Proof.
+     intros c st st1 st2 E1 E2.
+     generalize dependent st2;
+       induction E1; intros st2 E2; inv E2; try find_rewrite_inv;
+         repeat find_eqn; auto.
+     Qed.                
+  
   (*Evaluation as a function - step-indexed While but here we count down for all*)
   (*do we want the optional param or do we know how long the while will run *)
   Open Scope stm_scope. 
