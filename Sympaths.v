@@ -127,10 +127,11 @@ Module SymPaths.
     (SSeq s1 s2) (at level 80, right associativity) : stm_scope.
   Notation "'WHILE' b 'DO' s 'END'" := 
     (SWhile b s) (at level 80, right associativity) : stm_scope. 
- (* Notation "'WHILE' b 'FOR' n 'DO' s 'END'" := 
-    (SNWhile b n s) (at level 80, right associativity) : stm_scope.  *)
+   (*Notation "'WHILE' b 'FOR' n 'DO' s 'END'" := 
+    (SNWhile b n s) (at level 80, right associativity) : stm_scope.   *)
   Notation "'If' b 'THEN' s1 'ELSE' s2" :=
     (SIf b s1 s2) (at level 80, right associativity) : stm_scope.
+ 
 
   (*Variables we are working with*)
   Definition X : string := "X".
@@ -150,13 +151,6 @@ Module SymPaths.
        Y ::= Y * Z;;
        Z ::= Z + 1
                    END)%stm.
-
- (* Definition test_nwhile : statements := 
-    (Z ::= X;;
-    WHILE ~(Z = 0) FOR 4 DO
-       Y ::= Y * Z;;
-       Z ::= Z + 1
-                   END)%stm. *)
     
 
   Definition test_if : statements :=
@@ -184,7 +178,8 @@ Module SymPaths.
   Compute empty_st "x"%string .
   Compute (X !-> 3 ; X !-> 2 ; empty_st) X .
 
-(*Can be done with relations as well as an alternative*)
+  (*Can be done with relations as well as an alternative*)
+  (*We can add that*)
   Fixpoint aeval (st : state) (a : aexpr) : nat :=
   match a with
   | ANum n => n
@@ -242,9 +237,30 @@ Module SymPaths.
       beval st cond = true ->
       st  =[ s ]=> st' ->
       st' =[ WHILE cond DO s END ]=> st'' ->
-      st  =[ WHILE cond DO s END ]=> st''
+       st  =[ WHILE cond DO s END ]=> st''
+  (*| E_WhilenFalse : forall cond st s n,
+      beval st cond = false ->
+      st =[ WHILE cond FOR n DO s END ]=> st
+  | E_Whilen0 : forall cond st s n,
+      n = 0 ->
+      st =[ WHILE cond FOR n DO s END ]=> st                                      
+  | E_WhilenTrue : forall st st' st'' cond s n,
+      beval st cond = true ->
+      st  =[ s ]=> st' ->
+      st' =[ WHILE cond FOR n DO s END ]=> st'' -> (*where can we decrement n???*)
+      st  =[ WHILE cond FOR n-1 DO s END ]=> st'' *)
                                                                         
   where "st =[ s ]=> st'" := (ceval_relation s st st').
+
+  (* Definition test_nwhile : statements := 
+     (WHILE ~(Z = 0) FOR 2 DO
+       Z ::= Z + 1
+                   END)%stm. *)
+   
+  (* Example ceval_rel_while:
+     (Z !-> 1) =[ test_nwhile ]=> (Z !->3; Z !-> 2; Z !-> 1).
+   Proof.
+     unfold test_nwhile. apply E_WhilenTrue. -> fails here *)
 
   Check empty_st =[ (X ::= 1) ]=> (X !-> 1).
   Example ceval_relation_ex1:
@@ -382,6 +398,182 @@ st =[ stm ]=> st'
       ceval_function st s i = st2 ->
       st1 = st2 .
   Proof.
-    intros. rewrite <- H.  rewrite <- H0. reflexivity. Qed. 
+    intros. rewrite <- H.  rewrite <- H0. reflexivity. Qed.
+
+  (*Single-step (can add multi-step) evaluation -> what we need for Threads!*)
+  Inductive aval : aexpr -> Prop :=
+  | av_num : forall n, aval (ANum n).
+  
+  Reserved Notation " t '/' st '-->a' t' " (at level 40, st at level 39).
+  Inductive astep : state -> aexpr -> aexpr -> Prop :=
+  | AS_Var : forall st i,
+      AVar i / st -->a ANum (st i)
+  | AS_Plus1 : forall st a1 a1' a2,
+      a1 / st -->a a1' ->
+      (APlus a1 a2) / st -->a (APlus a1' a2)
+  | AS_Plus2 : forall st v a2 a2',
+      aval v ->
+      a2 / st -->a a2' ->
+      (APlus v a2) / st -->a (APlus v a2')
+  | AS_Plus : forall st n1 n2,
+      APlus (ANum n1) (ANum n2) / st -->a ANum (n1 + n2)
+  | AS_Mult1 : forall st a1 a1' a2,
+      a1 / st -->a a1' ->
+      (APlus a1 a2) / st -->a (APlus a1' a2)
+  | AS_Mult2 : forall st v a2 a2',
+      aval v ->
+      a2 / st -->a a2' ->
+      (APlus v a2) / st -->a (APlus v a2')
+  | A_Mult : forall st n1 n2,
+      AMult (ANum n1) (ANum n2) / st -->a ANum (n1 * n2)
+  where " t '/' st '-->a' t' " := (astep st t t').
+
+  Reserved Notation " t '/' st '-->b' t' " (at level 40, st at level 39).
+  Inductive bstep : state -> bexpr -> bexpr -> Prop :=
+  | BS_NotStep : forall st b1 b1',
+      b1 / st -->b b1' ->
+      (BNot b1) /st -->b (BNot b1')
+  | BS_NotTrue : forall st,
+      (BNot BTrue) / st -->b BFalse
+  | BS_NotFalse : forall st,
+      (BNot BFalse) / st -->b BTrue
+  | BS_AndStep : forall st b1 b1' b2,
+      b1 / st -->b b1' ->
+      (BAnd b1 b2) / st -->b (BAnd b1' b2)
+  | BS_AndTrueStep : forall st b2 b2',
+      b2 / st -->b b2' ->
+      (BAnd BTrue b2) / st -->b (BAnd BTrue b2')
+  | BS_AndTrueTrue : forall st,
+      (BAnd BTrue BTrue) / st -->b BTrue
+  | BS_AndTrueFalse : forall st,
+      (BAnd BTrue BFalse) / st -->b BFalse
+  | BS_AndFalse : forall st b2,
+      (BAnd BFalse b2) / st -->b BFalse
+  | BS_Eq1 : forall st a1 a1' a2,
+      a1 / st -->a a1' ->
+      (BEq a1 a2) / st -->b (BEq a1' a2)
+  | BS_Eq2 : forall st v a2 a2',
+      aval v ->
+      a2 / st -->a a2' ->
+      (BEq v a2) / st -->b (BEq v a2')
+  | BS_Eq : forall st n1 n2,
+      (BEq (ANum n1) (ANum n2)) / st -->b
+                                (if (n1 =? n2) then BTrue else BFalse)
+  | BS_Lt1 : forall st a1 a1' a2,
+      a1 / st -->a a1' ->
+      (BLessThan a1 a2) / st -->b (BLessThan a1' a2)
+  | BS_Lt2 : forall st v a2 a2',
+      aval v ->
+      a2 / st -->a a2' ->
+      (BLessThan v a2) / st -->b (BLessThan v a2')
+  | BS_Lt : forall st n1 n2,
+      (BLessThan (ANum n1) (ANum n2)) / st -->b
+                                      (if (n1 <? n2) then BTrue else BFalse)
+  where " t '/' st '-->b' t' " := (bstep st t t').
+
+  (*For the evaluation of statements we will use SKIP to know when we reach the end of the executiom aka
+ have reached normal form *)
+  (*The while statement is the most interesting one, we use If stm , transform the while into a 
+  conditional followed by the same WHILE *)
+
+  Module Thread_Imp.
+
+    Inductive statements : Type :=
+  | SSkip : statements
+  | SAss : string -> aexpr -> statements
+  | SSeq : statements -> statements -> statements 
+  | SIf : bexpr -> statements -> statements -> statements
+  | SWhile : bexpr -> statements -> statements
+  | SSingleThread : statements -> statements -> statements.
+
+  Notation "'skip'" :=
+  SSkip.
+  Notation "x '::=' a" :=
+  (SAss x a) (at level 60).
+  Notation "s1 ;; s2" :=
+  (SSeq s1 s2) (at level 80, right associativity).
+  Notation "'WHILE' b 'DO' s 'END'" :=
+  (SWhile b s) (at level 80, right associativity).
+  Notation "'If' b 'THEN' s1 'ELSE' s2 " :=
+  (SIf b s1 s2) (at level 80, right associativity).
+  Notation "'THREAD' s1 'WITH' s2 'END'" :=
+    (SSingleThread s1 s2) (at level 80, right associativity).
+
+  
+   (* Reserved Notation " t '/' st '-->' t' '/' st' " (at level 40, st at level 39, t' at level 39).
+    Inductive cstep : (statements * state) -> (statements * state) -> Prop :=
+    | CS_AssStep : forall st i a a',
+        a / st -->a a' ->
+        (i ::= a) / st --> (i ::= a') / st
+    | CS_Ass : forall st i n,
+        (i ::= (ANum n)) / st --> skip / (i !-> n ; st)
+    | CS_SeqStep : forall st s1 s1' s2 st',
+        s1 / st --> s1' / st' ->
+        (s1 ;; s2) / st --> (s1' ;; s2) / st'
+    | CS_SeqFinish : forall st s2,
+        (skip ;; s2) / st --> s2 / st
+    | CS_IfStep : forall st b b' s1 s2,
+        b / st -->b b' ->
+        (If b THEN s1 ELSE s2) / st --> (If b' THEN s1 ELSE s2)
+    | CS_IfTrue : forall st s1 s2,
+        (If BTrue THEN se ELSE s2) / st --> s1 / st
+    | CS_IfFalse : forall st s1 s2,
+        (If BFalse THEN se ELSE s2) / st --> s2 / st
+    | CS_While : forall st b s,
+        (WHILE b DO s END) / st -->
+                           (If b THEN (s ;; (WHILE b DO s END)) ELSE skip) / st
+                           (*this could be a good place to reduce n*)
+    | CS_ST1 : forall st s1 s1' s2 st',
+      s1 / st --> s1' / st' ->
+      (THREAD s1 WITH s2 END) / st --> (THREAD s1' WITH s2 END) / st'
+    | CS_ST2 : forall st s1 s2 s2' st',
+      s2 / st --> s2' / st' ->
+      (THREAD s1 WITH s2 END) / st --> (THREAD s1 WITH s2' END) / st'
+    | CS_STDone : forall st,
+      (THREAD skip WITH skip END) / st --> skip / st
+  where " t '/' st '-->' t' '/' st' " := (cstep (t,st) (t',st')).
+
+Inductive multi {X : Type} (R : relation X) : relation X :=
+  | multi_refl : forall (x : X), multi R x x
+  | multi_step : forall (x y z : X),
+                    R x y ->
+                    multi R y z ->
+                    multi R x z.
+
+Definition cmultistep := multi cstep.
+
+Notation " t '/' st '-->*' t' '/' st' " :=
+   (multi cstep  (t,st) (t',st'))
+   (at level 40, st at level 39, t' at level 39).
+
+(*Examples taken from the book*)
+Definition par_loop : com :=
+  PAR
+    Y ::= 1
+  WITH
+    WHILE Y = 0 DO
+      X ::= X + 1
+    END
+    END.
+
+Example par_loop_example_0:
+  exists st',
+       par_loop / empty_st  -->* SKIP / st'
+    /\ st' X = 0.
+Proof.
+Remember eapply ex_intro. 
+  Admitted. *)
+                                                
+
+                       
+    
+  
+  
+  
+                                
+                        
+                   
+    
+  
      
 End SymPaths.
