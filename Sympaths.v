@@ -144,28 +144,27 @@ Module SymPaths.
   Check (Z ::= X)%stm.
   Check (WHILE ~(W = 0) DO Y ::= Y * Z END)%stm.
 
-  Definition test_statement : statements :=
-    (Z ::= X;;
-     Y ::= 1;;
-     WHILE ~(Z = 0) DO
-       Y ::= Y * Z;;
-       Z ::= Z + 1
-                   END)%stm.
-    
+  Definition stm_if : statements :=
+    (X ::= 1 ;;
+     If (X < 1)
+        THEN Y ::= 3
+        ELSE Z ::= 5)%stm.
+  Check stm_if.
 
-  Definition test_if : statements :=
-    (If ~(Z = 0) THEN Y ::= 1 ELSE Y ::= 2)%stm.
-  Check test_if. 
-
+  Definition stm_while : statements :=
+    X ::= 0 ;;
+    WHILE (X < 1) DO
+       X ::= X + 1
+    END.
 
   Inductive procedure : Type :=
   | Proc (s : statements).
   Inductive program : Set := Prog (p : list procedure).
 
-  Check Prog(Proc(test_statement) :: Proc(test_statement) :: nil). 
+  Check Prog(Proc(stm_if) :: Proc(stm_while) :: nil). 
   Check Prog[].
-  Check Prog[Proc(test_statement) ; Proc(test_statement)].
-  Check Prog[Proc(test_statement)].
+  Check Prog[Proc(stm_if) ; Proc(stm_if)].
+  Check Prog[Proc(stm_while)].
 
 
   Definition state := total_map nat.
@@ -208,7 +207,8 @@ Module SymPaths.
   Compute beval ( X !-> 1 ; empty_st)  (X = 1)%expr.
   Compute aeval ( X !-> 2 ; Y !-> 3 ; empty_st) (X + Y)%expr.
   Compute beval ( X !-> 2 ; Y !-> 5 ; empty_st) (X < Y)%expr.
-  
+
+  (*
   Reserved Notation "st '=[' c ']=>' st'"
                   (at level 40).
 
@@ -328,86 +328,8 @@ Module SymPaths.
     - intros. inversion H1. rewrite H in H7. discriminate H7. apply IHceval_relation in H8. assumption.
     - intros. inversion H0. reflexivity. rewrite H in H3. discriminate H3.
     - intros. inversion H2. rewrite <- H6 in H7. rewrite H in H7. discriminate H7.
-      assert (st'0 = st'). apply IHceval_relation1 in H6. symmetry in H6. assumption.  rewrite H10 in H9. apply IHceval_relation2 in H9. assumption. Qed.
+      assert (st'0 = st'). apply IHceval_relation1 in H6. symmetry in H6. assumption.  rewrite H10 in H9. apply IHceval_relation2 in H9. assumption. Qed. *)
 
-  (*Simplified automated version, sesnsitive to naming, but more robust*)
-
-  Ltac inv H := inversion H; subst; clear H.
-  Ltac rewrite_inv H1 H2 := rewrite H1 in H2; inv H2.
-  Ltac find_rewrite_inv :=
-    match goal with
-      H1: ?E = true,
-      H2: ?E = false
-      |- _ => rewrite_inv H1 H2
-    end.
-  Ltac find_eqn :=
-    match goal with
-      H1: forall x, ?P x -> ?L = ?R,
-      H2: ?P ?X
-      |- _ => rewrite (H1 X H2) in *
-  end.
-   Theorem cevalR_deterministic_auto : forall s st st1 st2,
-      st =[ s ]=> st1 ->
-      st =[ s ]=> st2 ->
-                  st1 = st2.
-   Proof.
-     intros c st st1 st2 E1 E2.
-     generalize dependent st2;
-       induction E1; intros st2 E2; inv E2; try find_rewrite_inv;
-         repeat find_eqn; auto.
-     Qed.                
-  
-  (*Evaluation as a function - step-indexed While but here we count down for all*)
-  (*do we want the optional param or do we know how long the while will run *)
-  Open Scope stm_scope.
-  Fixpoint ceval_function (st : state) (s : statements) (n : nat) : state :=
-    match n with
-    | 0 => st (* here is the issue - what do we return -> pb is it counts down for everything*)
-    | S n' =>
-      match s with
-      | skip => st
-      | l ::= a =>
-              (l !-> aeval st a ; st)
-      | s1 ;; s2 =>
-              let st' := ceval_function st s1 n' in
-                ceval_function st' s2 n'
-      | If cond THEN s1 ELSE s2 =>
-              if (beval st cond)
-                then ceval_function st s1 n'
-                else ceval_function st s2 n'
-      | WHILE cond DO s1 END =>
-              if (beval st cond)
-                then let st' := ceval_function st s1 n' in
-                   ceval_function st' s n'
-                else st
-      end
-    end.
-  Close Scope stm_scope. 
-  
-  Definition stm_while : statements :=
-    X ::= 0 ;;
-    WHILE (X < 3) DO
-       X ::= X + 1
-    END.
-
-  (*OBS: as here we are dealing with a function, these are a lot easier to prove *)
-  Example ceval_function_ex1 :
-    ceval_function empty_st stm_while 4 = (X !-> 2 ; X !-> 1 ; X !-> 0).
-  Proof. simpl. reflexivity. Qed.
-
-  (* these evaluations are equivalent, can include a proof of equivalence:*)
-  (**
-Theorem cevalR_equiv_cevalR : forall c st st',
-st =[ stm ]=> st' 
-<-> exists i, ceval_function st stm i = st' .
-   *)       
-
-  Theorem cevalF_deterministic : forall s st st1 st2 i,
-      ceval_function st s i = st1 ->
-      ceval_function st s i = st2 ->
-      st1 = st2 .
-  Proof.
-    intros. rewrite <- H.  rewrite <- H0. reflexivity. Qed.
 
   (*Single-step (can add multi-step) evaluation -> what we need for Threads!*)
   Inductive aval : aexpr -> Prop :=
@@ -509,7 +431,7 @@ st =[ stm ]=> st'
         (WHILE b DO s END) / st -->
                            (If b THEN (s ;; (WHILE b DO s END)) ELSE skip) / st
                            (*this could be a good place to reduce n*) 
-    where " t '/' st '-->' t' '/' st' " := (cstep (t,st) (t',st')). 
+    where " t '/' st '-->' t' '/' st' " := (cstep (t,st) (t',st')).  
 
     Inductive threadPool : Type :=
     | Thread (s : statements)
@@ -521,7 +443,7 @@ st =[ stm ]=> st'
     Check (TPar (TPar (skip) (skip)) (skip)). 
     
     Reserved Notation " t '/' st '-->t' t' '/' st' " (at level 40, st at level 39, t' at level 39).
-    
+    Open Scope stm_scope. 
     Inductive tpstep : (threadPool * state) -> (threadPool * state) -> Prop :=
     | TS_T1 : forall st t1 t1' t2 st',
         t1 / st -->t t1' / st' ->
@@ -540,11 +462,9 @@ st =[ stm ]=> st'
         
           where " t '/' st '-->t' t' '/' st' " := (tpstep (t,st) (t', st')).
         
-    Close Scope stm_scope.
-
+   
+Definition relation (X : Type) := X -> X -> Prop.
     
-    
-        
 Inductive multi {X : Type} (R : relation X) : relation X :=
   | multi_refl : forall (x : X), multi R x x
   | multi_step : forall (x y z : X),
@@ -559,6 +479,49 @@ Notation " t '/' st '-->*' t' '/' st' " :=
    (at level 40, st at level 39, t' at level 39).
 
 (*Examples taken from the book*)
+
+
+Example cstep_ex_skip :
+  forall st,
+    (skip) / st -->* (skip) / st .
+Proof.
+    intros st.
+    apply multi_refl. Qed.
+
+Example cstep_ex_asgn :
+    (Y ::= 3) / (X !-> 1) -->* (skip) / ( Y !-> 3 ; X !-> 1).
+Proof.
+  eapply multi_step. {apply CS_Ass. }
+                     apply multi_refl. Qed.
+
+Example cstep_ex2_asgn :
+    (Y ::= 3) / (X !-> 1) --> (skip) / ( Y !-> 3 ; X !-> 1).
+Proof.
+  apply CS_Ass. Qed.
+
+Example cstep_ex3_seq:
+  (X ::= 1  ;; Y ::= 3) / empty_st -->* (skip) / ( Y !-> 3; X !-> 1) .
+
+Proof.
+  eapply multi_step.
+  - eapply CS_SeqStep. apply CS_Ass.
+  - eapply multi_step.
+    + eapply CS_SeqFinish.
+    + eapply multi_step. apply CS_Ass.
+  apply multi_refl. Qed.
+
+Example cstep_ex4_if:
+    stm_if / empty_st -->* (skip) / ( Z !-> 5 ;  X !-> 1 ).
+  Proof.
+    eapply E_Seq.
+    - apply E_Ass. reflexivity.
+    - apply E_IfFalse. reflexivity.
+      apply E_Ass. reflexivity. Qed.
+
+
+    
+    
+        
 
 Definition par_loop : com :=
   PAR
@@ -588,5 +551,5 @@ Remember eapply ex_intro.
                    
     
   
-     
+Close Scope stm_scope.    
 End SymPaths.
