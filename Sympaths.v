@@ -60,54 +60,56 @@ Module SymPaths.
   Check (APlus (ANum 1) (ANum 3)). (* -> without coercion*)
 
   
-  Inductive LInt : Type := x (n: nat).
-  Inductive LBool : Type := b (n: nat).
+  Inductive LNat : Type := x (n: nat).
+  (*technically if we do not have boolean variables, we should not need this*)
+  Inductive LBool : Type := bB (n: nat).
 
   Check x(1).
-  Check b(101).
+  Check bB(101).
 
-  Inductive symExprInt : Type :=
-  | SymLInt (x : LInt)
-  | SymInt (n : nat)
-  | SymPlus (a1 a2 : symExprInt)
-  | SymMult (a1 a2 : symExprInt).
+  Inductive symExprArit : Type :=
+  | SymLNat (x : LNat)
+  | SymNat (n : nat)
+  | SymPlus (a1 a2 : symExprArit)
+  | SymMult (a1 a2 : symExprArit).
 
   Inductive symExprBool : Type :=
   | SymLBool (b : LBool)
   | SymBool (b : bool)
   | SymNot (b : symExprBool)
   | SymAnd (b1 b2 : symExprBool)
-  | SymEqInt (a1 a2 : symExprInt)
-  | SymEqBool (b1 b2 : symExprBool). (*can i define SymEq for both bool and int?*)
+  | SymEq (a1 a2 : symExprArit)
+  | SymLessThan (a1 a2 : symExprArit). (*added to match bexpr*)
 
-  Coercion SymInt : nat >-> symExprInt.
-  Coercion SymLInt : LInt >-> symExprInt.
+  Coercion SymNat : nat >-> symExprArit.
+  Coercion SymLNat : LNat >-> symExprArit.
   Coercion SymBool : bool >-> symExprBool.
   Coercion SymLBool : LBool >-> symExprBool.
 
-  Bind Scope symexpr_scope with symExprInt.
+  Bind Scope symexpr_scope with symExprArit.
   Bind Scope symexpr_scope with symExprBool.
   Delimit Scope symexpr_scope with symexpr.
 
 
   Notation "x + y" := (SymPlus x y) (at level 50, left associativity) : symexpr_scope.
   Notation "x * y" := (SymMult x y) (at level 40, left associativity) : symexpr_scope.
-  Notation "x = y" := (SymEqInt x y) (at level 70, no associativity) : symexpr_scope.
-  Notation "x == y" := (SymEqBool x y) (at level 70, no associativity) : symexpr_scope.
+  Notation "x = y" := (SymEq x y) (at level 70, no associativity) : symexpr_scope.
+  Notation "x < y" := (SymLessThan x y) (at level 70, no associativity) : symexpr_scope.
   Notation "x && y" := (SymAnd x y) (at level 40, left associativity) : symexpr_scope.
   Notation "'~' b" := (SymNot b) (at level 75, right associativity) : symexpr_scope.
 
+  Check (0)%symexpr.
   Check (x(2))%symexpr.
-  Check (b(2))%symexpr.
+  Check (bB(2))%symexpr.
   Check (1 + x(2))%symexpr.
   Check (1 = 2)%symexpr.
-  Check (true == true)%symexpr.
 
 
   Check (1 + 2)%expr.
   Check (1 + AVar "x")%expr.
 
   (*We need to decide how the while works*)
+  (*If we change aeval and beval, will this be affected?*)
   Inductive statement : Type :=
   | SAss (x : string) (a : aexpr) 
   | SSkip
@@ -219,13 +221,15 @@ Module SymPaths.
 
   (*Single-step (can add multi-step) evaluation -> what we need for Threads!*)
   (*symbolic evaluation -> this needs to be changed*)
+  (*what are the values if we have symbolic evaluation?*)
   Inductive aval : aexpr -> Prop :=
   | av_num : forall n, aval (ANum n).
   
   (*For the evaluation of statements we will use SKIP to know when we reach the end of the execution aka
- have reached normal form *)
+ have reached normal form -> we can also use idle as per the paper *)
   (*The while statement is the most interesting one, we use If stm , transform the while into a 
   conditional followed by the same WHILE *)
+  (*cstep should not change as it is aeval and beval that is different*)
 
    Open Scope stm_scope.
     Reserved Notation " t '/' st '-->' t' '/' st' " (at level 40, st at level 39, t' at level 39).
@@ -258,6 +262,8 @@ Module SymPaths.
                            (If b THEN (s ;; (WHILE b FOR n-1 DO s END)) ELSE SKIP) / st
     where " t '/' st '-->' t' '/' st' " := (cstep (t,st) (t',st')).  
 
+    Hint Constructors cstep.
+
 (*multi-step closure of a relation*)
 Definition relation (X : Type) := X -> X -> Prop.
     
@@ -267,6 +273,7 @@ Inductive multi {X : Type} (R : relation X) : relation X :=
                     R x y ->
                     multi R y z ->
                     multi R x z.
+Hint Constructors multi.
 
 Definition cmultistep := multi cstep.
 
@@ -279,14 +286,16 @@ Example cstep_ex_skip :
   forall st,
     (SKIP) / st -->* (SKIP) / st .
 Proof.
-    intros st.
-    apply multi_refl. Qed.
+  auto. Qed. (*with Hint Constructors*) 
+  (*intros st.
+    apply multi_refl. Qed. -without hint constructors *)
 
 Example cstep_ex_asgn :
     (Y ::= 3) / (X !-> 1) -->* (SKIP) / ( Y !-> 3 ; X !-> 1).
 Proof.
-  eapply multi_step. {apply CS_Ass. }
-                     apply multi_refl. Qed.
+  eauto. Qed. (*with hint constructors*)
+  (*eapply multi_step. {apply CS_Ass. }
+                     apply multi_refl. Qed. without hint Constructors*)
 
 Example cstep_ex2_asgn :
     (Y ::= 3) / (X !-> 1) --> (SKIP) / ( Y !-> 3 ; X !-> 1).
@@ -297,12 +306,13 @@ Example cstep_ex3_seq:
   (X ::= 1  ;; Y ::= 3) / empty_st -->* (SKIP) / ( Y !-> 3; X !-> 1) .
 
 Proof.
-  eapply multi_step.
+  eauto. Qed. (*with hint constructors*)
+  (*eapply multi_step.
   - eapply CS_SeqStep. apply CS_Ass.
   - eapply multi_step.
     + eapply CS_SeqFinish.
     + eapply multi_step. apply CS_Ass.
-  apply multi_refl. Qed.
+  apply multi_refl. Qed. *) (*without*)
 
 Example cstep_ex4_if:
   stm_if / empty_st -->* (SKIP) / ( Z !-> 5 ;  X !-> 1 ).
@@ -317,6 +327,7 @@ Proof.
 Example cstep_ex5_while:
   stm_while / empty_st -->* (SKIP) / (X !-> 1 ; X !-> 0).
 Proof.
+  (*eauto.- does not work, i assume becuase of simpl in the proof *)
   unfold stm_while.
   eapply multi_step. eapply CS_SeqStep. apply CS_Ass.
   eapply multi_step. eapply CS_SeqFinish.
@@ -461,18 +472,74 @@ Definition deterministic {X : Type} (R : relation X) :=
   forall x y1 y2: X,
     R x y1 -> R x y2 -> y1 = y2.
 
-(*Theorem cstep_deterministic :
+Theorem cstep_deterministic :
   deterministic cstep.
-Proof.
-  unfold deterministic. intros x y1 y2 Hy1 Hy2. 
-  generalize dependent y2.
-  induction Hy1; intros y2 Hy2.
-  - (*CS_AssStep*) inversion Hy2.
-    + (*CS_AssStep*) reflexivity.
-    + (*CS_Ass*) rewrite <- H3 in Hy2.  inversion Hy2. 
- (*CS_Seq*) *)
-(*this might be more effort than necessary, there will end up being 8 cases, each one with 8 cases*)
+Proof. Admitted.
 
+(*Symbolical evaluation*)
+(*Step 1 : Defining substitution -> function? *)
+(*I think we want to have 2 subst, one for bool and one for arithmetics instead of beval and aeval*)
 
+(*what about states??*)
+(*we only define maping for SymArit, will that be a problem on the way?*)
+Open Scope symexpr. 
+Definition sym_state := total_map symExprArit.
+Definition empty_sym_st := (_ !-> SymNat(0)).
+Check empty_sym_st.
+
+  Notation "a '!->' x" := (t_update empty_sym_st a x) (at level 100).
+  Compute empty_sym_st .
+  Compute empty_sym_st "x"%string .
+  Compute (X !-> x(0) + 3 ; X !-> x(0); empty_sym_st) X .
+  
+(*How is this connected to normal subst, see down...*)
+(*Do we not need states tho...*)
+Fixpoint sym_aeval(st : sym_state) (t : aexpr) : symExprArit :=
+  match t with
+    (*possible aexpr*)
+  | ANum n =>
+      SymNat n
+  | AVar v => st v
+  | APlus a1 a2 => (sym_aeval st a1) + (sym_aeval st a2)
+  | AMult a1 a2 => (sym_aeval st a1) * (sym_aeval st a2)
+  end.
+
+(*OBS: I updated sym expr and have equality only for ints*)
+Fixpoint sym_beval(st : sym_state) (t : bexpr) : symExprBool :=
+  match t with
+  (*possible bexpr*)
+  (*we use the notation from the symexpr module*)
+  | BTrue  => SymBool true
+  | BFalse => SymBool false 
+  | BNot b => SymNot(sym_beval st b)
+  | BAnd b1 b2 => (sym_beval st b1) && (sym_beval st b2)
+  | BEq a1 a2 => (sym_aeval st a1) = (sym_aeval st a2) 
+  | BLessThan a1 a2 => (sym_aeval st a1) < (sym_aeval st a2)
+  end.
+
+Compute (sym_beval (X !-> x(5)) (3 = X + 5)).
+Close Scope symexpr. 
+                           
+          
+(*Example of substitution from book:
+Reserved Notation "'[' x ':=' s ']' t" (at level 20).
+
+Fixpoint subst (x : string) (s : tm) (t : tm) : tm :=
+  match t with
+  | var x' =>
+      if eqb_string x x' then s else t
+  | abs x' T t1 =>
+      abs x' T (if eqb_string x x' then t1 else ([x:=s] t1))
+  | app t1 t2 =>
+      app ([x:=s] t1) ([x:=s] t2)
+  | tru =>
+      tru
+  | fls =>
+      fls
+  | test t1 t2 t3 =>
+      test ([x:=s] t1) ([x:=s] t2) ([x:=s] t3)
+  end
+
+where "'[' x ':=' s ']' t" := (subst x s t).*)
 
 End SymPaths.
