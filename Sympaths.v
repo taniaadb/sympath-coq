@@ -60,7 +60,7 @@ Module SymPaths.
   Check (APlus (ANum 1) (ANum 3)). (* -> without coercion*)
 
   
-  Inductive LNat : Type := x (n: nat).
+  Inductive LNat : Type := x (n: nat). 
   (*technically if we do not have boolean variables, we should not need this*)
   Inductive LBool : Type := bB (n: nat).
 
@@ -101,8 +101,9 @@ Module SymPaths.
   Check (0)%symexpr.
   Check (x(2))%symexpr.
   Check (bB(2))%symexpr.
-  Check (1 + x(2))%symexpr.
+  Check (1 + x(2))%symexpr. 
   Check (1 = 2)%symexpr.
+  Check (1 + 2 + x(0))%symexpr.
 
 
   Check (1 + 2)%expr.
@@ -222,8 +223,8 @@ Module SymPaths.
   (*Single-step (can add multi-step) evaluation -> what we need for Threads!*)
   (*symbolic evaluation -> this needs to be changed*)
   (*what are the values if we have symbolic evaluation?*)
-  Inductive aval : aexpr -> Prop :=
-  | av_num : forall n, aval (ANum n).
+  (*Inductive aval : aexpr -> Prop :=
+  | av_num : forall n, aval (ANum n). *)
   
   (*For the evaluation of statements we will use SKIP to know when we reach the end of the execution aka
  have reached normal form -> we can also use idle as per the paper *)
@@ -234,21 +235,19 @@ Module SymPaths.
    Open Scope stm_scope.
     Reserved Notation " t '/' st '-->' t' '/' st' " (at level 40, st at level 39, t' at level 39).
     Inductive cstep : (statement * state) -> (statement * state) -> Prop :=
-    | CS_AssStep : forall st i a,
-        (i ::= a ) / st --> (i ::= (aeval st a)) / st
-    | CS_Ass : forall st i n,
-        (i ::= (ANum n)) / st --> (SKIP) / (i !-> n ; st) 
+    | CS_Ass : forall st i a,
+        (i ::= a) / st --> (SKIP) / (i !-> (aeval st a) ; st) 
     | CS_SeqStep : forall st s1 s1' s2 st',
         s1 / st --> s1' / st' ->
         (s1 ;; s2) / st --> (s1' ;; s2) / st'
     | CS_SeqFinish : forall st s2,
         (SKIP ;; s2) / st --> s2 / st 
-    | CS_IfStep : forall st b s1 s2,
-        (If b THEN s1 ELSE s2) / st --> (If (beval st b) THEN s1 ELSE s2) / st
-    | CS_IfTrue : forall st s1 s2,
-        (If BTrue THEN s1 ELSE s2) / st --> s1 / st
-    | CS_IfFalse : forall st s1 s2,
-        (If BFalse THEN s1 ELSE s2) / st --> s2 / st
+    | CS_IfTrue : forall st s1 s2 b,
+        (beval st b) = true ->
+        (If b THEN s1 ELSE s2) / st --> s1 / st
+    | CS_IfFalse : forall st s1 s2 b,
+        (beval st b) = false ->
+        (If b THEN s1 ELSE s2) / st --> s2 / st
     | CS_While : forall st b s,
         (WHILE b DO s END) / st -->
                            (If b THEN (s ;; (WHILE b DO s END)) ELSE SKIP) / st
@@ -275,8 +274,6 @@ Inductive multi {X : Type} (R : relation X) : relation X :=
                     multi R x z.
 Hint Constructors multi.
 
-Definition cmultistep := multi cstep.
-
 Notation " t '/' st '-->*' t' '/' st' " :=
    (multi cstep  (t,st) (t',st'))
      (at level 40, st at level 39, t' at level 39).
@@ -293,9 +290,9 @@ Proof.
 Example cstep_ex_asgn :
     (Y ::= 3) / (X !-> 1) -->* (SKIP) / ( Y !-> 3 ; X !-> 1).
 Proof.
-  eauto. Qed. (*with hint constructors*)
+  eauto. Qed. (*with hint constructors*) 
   (*eapply multi_step. {apply CS_Ass. }
-                     apply multi_refl. Qed. without hint Constructors*)
+                     apply multi_refl. Qed. (*without hint Constructors*) *)
 
 Example cstep_ex2_asgn :
     (Y ::= 3) / (X !-> 1) --> (SKIP) / ( Y !-> 3 ; X !-> 1).
@@ -318,28 +315,23 @@ Example cstep_ex4_if:
   stm_if / empty_st -->* (SKIP) / ( Z !-> 5 ;  X !-> 1 ).
 Proof.
   unfold stm_if.
-  eapply multi_step. eapply CS_SeqStep. apply CS_Ass.
+  eapply multi_step. eapply CS_SeqStep. apply CS_Ass. simpl.
   eapply multi_step. eapply CS_SeqFinish.
-  eapply multi_step. apply CS_IfStep. simpl. 
-  eapply multi_step. apply CS_IfFalse. eapply multi_step. apply CS_Ass.
+  eapply multi_step. apply CS_IfFalse. simpl. reflexivity. eapply multi_step. apply CS_Ass.
   apply multi_refl. Qed.
 
 Example cstep_ex5_while:
   stm_while / empty_st -->* (SKIP) / (X !-> 1 ; X !-> 0).
 Proof.
-  (*eauto.- does not work, i assume becuase of simpl in the proof *)
   unfold stm_while.
   eapply multi_step. eapply CS_SeqStep. apply CS_Ass.
   eapply multi_step. eapply CS_SeqFinish.
   eapply multi_step. apply CS_While.
-  eapply multi_step. apply CS_IfStep. simpl.
-  eapply multi_step. apply CS_IfTrue. eapply multi_step. eapply CS_SeqStep.
-         apply CS_AssStep. simpl. 
-  eapply multi_step. eapply CS_SeqStep. apply CS_Ass.
+  eapply multi_step. apply CS_IfTrue. reflexivity.  eapply multi_step. eapply CS_SeqStep.
+         apply CS_Ass. simpl. 
   eapply multi_step. eapply CS_SeqFinish.
   eapply multi_step. eapply CS_While.
-  eapply multi_step. eapply CS_IfStep. simpl.  
-  eapply multi_step. eapply CS_IfFalse.
+  eapply multi_step. eapply CS_IfFalse. reflexivity.
   apply multi_refl. Qed.
 
 Example cstep_ex6_n_while:
@@ -347,32 +339,29 @@ Example cstep_ex6_n_while:
 Proof.
   unfold stm_n_while.
   eapply multi_step. eapply CS_NWhile.
-  eapply multi_step. apply CS_IfStep. simpl.
-  eapply multi_step. apply CS_IfTrue. eapply multi_step. eapply CS_SeqStep.
-     apply CS_AssStep. simpl. eapply multi_step. apply CS_SeqStep. apply CS_Ass.
+  eapply multi_step. apply CS_IfTrue. reflexivity.  eapply multi_step. eapply CS_SeqStep. apply CS_Ass.
      eapply multi_step. apply CS_SeqFinish.
   eapply multi_step. eapply CS_NWhile.
-  eapply multi_step. apply CS_IfStep. simpl.
-  eapply multi_step. apply CS_IfTrue. eapply multi_step. eapply CS_SeqStep.
-     apply CS_AssStep. simpl. eapply multi_step. apply CS_SeqStep. apply CS_Ass.
+  eapply multi_step. apply CS_IfTrue. reflexivity. eapply multi_step. eapply CS_SeqStep. apply CS_Ass.
      eapply multi_step. apply CS_SeqFinish.
      eapply multi_step. apply CS_N0While. reflexivity.
      eapply multi_refl. Qed.
-     
-     
- (*Adding the threads*)
+   
+(*Adding the threads*)
+    Inductive tid : Type := id (n : nat). 
 
     Inductive threadPool : Type :=
-    | Thread (s : statement)
+    | Thread (t : tid) (s : statement)
     | TPar (tp1 tp2: threadPool).
 
-    Coercion Thread : statement >-> threadPool.
-    Check Thread(SKIP).
-    Check (TPar (SKIP) (stm_if)).
-    Check (TPar (TPar (SKIP) (stm_if)) (stm_n_while)). 
+    (*Coercion Thread : statement >-> threadPool. *)
+    Check Thread (id 0) (SKIP).
+    Check (TPar (Thread (id 0) (SKIP)) (Thread (id 1) (stm_if))).
+    (*Check (TPar (TPar (SKIP) (stm_if)) (stm_n_while)). *)
     
     Reserved Notation " t '/' st '-->t' t' '/' st' " (at level 40, st at level 39, t' at level 39).
-    Open Scope stm_scope. 
+    Open Scope stm_scope.
+    
     Inductive tpstep : (threadPool * state) -> (threadPool * state) -> Prop :=
     | TS_T1 : forall st t1 t1' t2 st',
         t1 / st -->t t1' / st' ->
@@ -380,18 +369,16 @@ Proof.
     | TS_T2 : forall st t1 t2 t2' st',
         t2 / st -->t t2' / st' ->
         (TPar t1 t2) / st -->t (TPar t1 t2') / st'
-    | TS_ST1 : forall st s1 s1' s2 st', (*when we arrive to statements*)
+    | TS_ST1 : forall st s1 s1' st' n t2, (*when we arrive to statements*)
         s1 / st --> s1' / st' ->
-        (TPar s1 s2) / st -->t (TPar s1' s2) / st'        
-    | TS_ST2 : forall st s1 s2 s2' st',
+        (TPar (Thread (id n) s1) t2) / st -->t (TPar (Thread (id n) s1') t2) / st'        
+    | TS_ST2 : forall st s2 s2' st' t1 n, 
         s2 / st --> s2' / st' ->
-        (TPar s1 s2) / st -->t (TPar s1 s2') / st'
-    | TS_STDone : forall st,
-        (TPar (SKIP) (SKIP)) / st -->t Thread(SKIP) / st
+        (TPar t1 (Thread (id n) s2)) / st -->t (TPar t1 (Thread (id n) s2')) / st'
+    | TS_STDone : forall st n n',
+        (TPar (Thread (id n) (SKIP)) (Thread (id n') (SKIP))) / st -->t (Thread (id n) (SKIP)) / st
         
           where " t '/' st '-->t' t' '/' st' " := (tpstep (t,st) (t', st')).
-
-Definition tmultistep := multi tpstep.
 
 Notation " t '/' st '-->t*' t' '/' st' " :=
    (multi tpstep  (t,st) (t',st'))
@@ -399,18 +386,21 @@ Notation " t '/' st '-->t*' t' '/' st' " :=
   
 Definition stm_thread : threadPool :=
   (TPar
-    (TPar
-      (Y ::= 1)
-      (WHILE Y = 0 DO
-          X ::= X + 1
-                      END) )
-    (Z ::= 5)).
+     (TPar
+        (Thread (id 0)
+                (Y ::= 1))
+        (Thread (id 1)
+                (WHILE Y = 0 DO
+                 X ::= X + 1
+                      END)))
+     (Thread (id 2)
+             (Z ::= 5))).
 
 Check ex_intro.
 
 Example tpstep_ex1:
   exists st',
-       stm_thread / empty_st  -->t* Thread(SKIP) / st'
+       stm_thread / empty_st  -->t* Thread (id 0) (SKIP) / st'
        /\ st' X = 0.
 Proof.
   eapply ex_intro. split.
@@ -424,9 +414,7 @@ Proof.
   eapply multi_step. apply TS_T1.
   (*and thread 2 in thread 1*)
   apply TS_ST2. apply CS_While.
-  eapply multi_step. apply TS_T1. apply TS_ST2. 
-      apply CS_IfStep. simpl. 
-  eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_IfFalse.
+  eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_IfFalse. reflexivity. 
   eapply multi_step. apply TS_T1. apply TS_STDone.
 
   (*finally we look at thread 2*)
@@ -437,7 +425,7 @@ Proof.
 
 Example tpstep_ex2:
   exists st',
-    stm_thread / empty_st -->t* Thread(SKIP) /  st'
+    stm_thread / empty_st -->t* Thread (id 0) (SKIP) /  st'
     /\ st' X = 1.
 Proof.
   eapply ex_intro. split. unfold stm_thread. 
@@ -448,10 +436,8 @@ Proof.
   eapply multi_step. apply TS_T1.
   (*thread 2 in thread 1 first*)
   apply TS_ST2. apply CS_While. 
-  eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_IfStep. simpl.  
-  eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_IfTrue.
-  eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_SeqStep. apply CS_AssStep. simpl.
-  eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_SeqStep. apply CS_Ass.
+  eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_IfTrue. reflexivity.
+  eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_SeqStep. apply CS_Ass. simpl. 
   eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_SeqFinish.
 
   (*then thread 1 in thread 1*)
@@ -459,8 +445,7 @@ Proof.
 
   (*finally thread 2 in thread 1 again*)
   eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_While. 
-  eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_IfStep. simpl.
-  eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_IfFalse.
+  eapply multi_step. apply TS_T1. apply TS_ST2. apply CS_IfFalse. reflexivity.
   eapply multi_step. apply TS_T1. apply TS_STDone.
   eapply multi_step. apply TS_STDone.
   apply multi_refl.
@@ -504,6 +489,8 @@ Fixpoint sym_aeval(st : sym_state) (t : aexpr) : symExprArit :=
   | AMult a1 a2 => (sym_aeval st a1) * (sym_aeval st a2)
   end.
 
+Compute sym_aeval (X !-> x(0) ; Y !-> x(1)) ((X + 1 + Y) * X ).
+
 (*OBS: I updated sym expr and have equality only for ints*)
 Fixpoint sym_beval(st : sym_state) (t : bexpr) : symExprBool :=
   match t with
@@ -518,28 +505,78 @@ Fixpoint sym_beval(st : sym_state) (t : bexpr) : symExprBool :=
   end.
 
 Compute (sym_beval (X !-> x(5)) (3 = X + 5)).
+
+(*Inductive symPath : Type :=
+  | *)
+
+
+ Open Scope stm_scope. 
+Reserved Notation " t '/' st '--[' l ']-->s' t' '/' st' " (at level 40, st at level 39, t' at level 39).
+    Inductive sym_step : tid -> (statement * sym_state) -> (statement * sym_state) -> Prop :=
+    | S_Ass : forall st i a l,
+        (i ::= a) / st --[l]-->s (SKIP) / (i !-> (sym_aeval st a) ; st) 
+    | S_SeqStep : forall st s1 s1' s2 st' l,
+        s1 / st --[l]-->s s1' / st' ->
+        (s1 ;; s2) / st --[l]-->s (s1' ;; s2) / st'
+    | S_SeqFinish : forall st s2 l,
+        (SKIP ;; s2) / st --[l]-->s s2 / st 
+   (* | S_IfStep : forall st b s1 s2,
+        (If b THEN s1 ELSE s2) / st --> (If (beval st b) THEN s1 ELSE s2) / st *)
+    | S_IfTrue : forall st s1 s2 b l,
+        (*(sym_beval st b) = SymBool true -> *)
+        (If b THEN s1 ELSE s2) / st --[l]-->s s1 / st
+    | S_IfFalse : forall st s1 s2 b l,
+        (*(sym_beval st b) = SymBool false -> *)
+        (If b THEN s1 ELSE s2) / st --[l]-->s s2 / st
+    | S_While : forall st b s l,
+        (WHILE b DO s END) / st --[l]-->s
+                           (If b THEN (s ;; (WHILE b DO s END)) ELSE SKIP) / st
+    (*this could be a good place to reduce n*)
+    | S_N0While : forall st b n s l,
+        n = 0 ->
+        (WHILE b FOR n DO s END) / st --[l]-->s
+                           (SKIP) / st
+     | S_NWhile : forall st b n s l,
+        (WHILE b FOR n DO s END) / st --[l]-->s
+                           (If b THEN (s ;; (WHILE b FOR n-1 DO s END)) ELSE SKIP) / st
+    where " t '/' st '--[' l ']-->s' t' '/' st' " := (sym_step (l) (t,st) (t',st')). 
+    
+Notation " t '/' st '--[' l ']-->s*' t' '/' st' " :=
+   (multi (sym_step (l)) (t,st) (t',st'))
+     (at level 40, st at level 39, t' at level 39).
+    
+Example sym_step__if:
+  stm_if / (X !-> x(0) ; Y !-> x(1) ; Z !-> x(2)) --[id 0]-->s*
+  (SKIP) / (Y !-> (SymNat 3) ; X !-> (SymNat 1)  ; X !-> x(0) ; Y !-> x(1) ; Z !-> x(2)).
+Proof. 
+  unfold stm_if.
+  eapply multi_step. apply S_SeqStep. apply S_Ass. simpl.
+  eapply multi_step. apply S_SeqFinish.
+  eapply multi_step. apply S_IfTrue. eapply multi_step.  apply S_Ass. simpl.
+  eapply multi_refl. Qed.
+
+(*Reserved Notation " t '/' st '-->ts' t' '/' st' " (at level 40, st at level 39, t' at level 39).
+Inductive tp_sym_step : (threadPool * sym_state) -> (threadPool * sym_state) -> Prop :=
+    | TS_T1 : forall st t1 t1' t2 st',
+        t1 / st -->ts t1' / st' ->
+        (TPar t1 t2) / st -->ts (TPar t1' t2) / st'
+    | TS_T2 : forall st t1 t2 t2' st',
+        t2 / st -->ts t2' / st' ->
+        (TPar t1 t2) / st -->ts (TPar t1 t2') / st'
+    | TS_ST1 : forall st s1 s1' st' n t2, 
+        s1 / st -->s s1' / st' ->
+        (TPar (Thread (id n) s1) t2) / st -->ts (TPar (Thread (id n) s1') t2) / st'        
+    | TS_ST2 : forall st s2 s2' st' t1 n, 
+        s2 / st -->s s2' / st' ->
+        (TPar t1 (Thread (id n) s2)) / st -->ts (TPar t1 (Thread (id n) s2')) / st'
+    | TS_STDone : forall st n n',
+        (TPar (Thread (id n) (SKIP)) (Thread (id n') (SKIP))) / st -->ts (Thread (id n) (SKIP)) / st
+        
+          where " t '/' st '-->ts' t' '/' st' " := (tp_sym_step (t,st) (t', st')). *)
+
+    
 Close Scope symexpr. 
-                           
-          
-(*Example of substitution from book:
-Reserved Notation "'[' x ':=' s ']' t" (at level 20).
+Close Scope stm_scope.                           
 
-Fixpoint subst (x : string) (s : tm) (t : tm) : tm :=
-  match t with
-  | var x' =>
-      if eqb_string x x' then s else t
-  | abs x' T t1 =>
-      abs x' T (if eqb_string x x' then t1 else ([x:=s] t1))
-  | app t1 t2 =>
-      app ([x:=s] t1) ([x:=s] t2)
-  | tru =>
-      tru
-  | fls =>
-      fls
-  | test t1 t2 t3 =>
-      test ([x:=s] t1) ([x:=s] t2) ([x:=s] t3)
-  end
-
-where "'[' x ':=' s ']' t" := (subst x s t).*)
 
 End SymPaths.
