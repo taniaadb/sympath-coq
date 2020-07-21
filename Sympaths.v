@@ -555,24 +555,24 @@ Proof.
   eapply multi_step. apply S_IfTrue. eapply multi_step.  apply S_Ass. simpl.
   eapply multi_refl. Qed.
 
-(*Reserved Notation " t '/' st '-->ts' t' '/' st' " (at level 40, st at level 39, t' at level 39).
+Reserved Notation " t '/' st '-->ts' t' '/' st' " (at level 40, st at level 39, t' at level 39).
 Inductive tp_sym_step : (threadPool * sym_state) -> (threadPool * sym_state) -> Prop :=
-    | TS_T1 : forall st t1 t1' t2 st',
+    | S_T1 : forall st t1 t1' t2 st',
         t1 / st -->ts t1' / st' ->
         (TPar t1 t2) / st -->ts (TPar t1' t2) / st'
-    | TS_T2 : forall st t1 t2 t2' st',
+    | S_T2 : forall st t1 t2 t2' st',
         t2 / st -->ts t2' / st' ->
         (TPar t1 t2) / st -->ts (TPar t1 t2') / st'
-    | TS_ST1 : forall st s1 s1' st' n t2, 
-        s1 / st -->s s1' / st' ->
+    | S_ST1 : forall st s1 s1' st' n t2, 
+        s1 / st --[id n]-->s s1' / st' ->
         (TPar (Thread (id n) s1) t2) / st -->ts (TPar (Thread (id n) s1') t2) / st'        
-    | TS_ST2 : forall st s2 s2' st' t1 n, 
-        s2 / st -->s s2' / st' ->
+    | S_ST2 : forall st s2 s2' st' t1 n, 
+        s2 / st --[id n]-->s s2' / st' ->
         (TPar t1 (Thread (id n) s2)) / st -->ts (TPar t1 (Thread (id n) s2')) / st'
-    | TS_STDone : forall st n n',
+    | S_STDone : forall st n n',
         (TPar (Thread (id n) (SKIP)) (Thread (id n') (SKIP))) / st -->ts (Thread (id n) (SKIP)) / st
         
-          where " t '/' st '-->ts' t' '/' st' " := (tp_sym_step (t,st) (t', st')). *)
+          where " t '/' st '-->ts' t' '/' st' " := (tp_sym_step (t,st) (t', st')). 
 
     
 Close Scope symexpr. 
