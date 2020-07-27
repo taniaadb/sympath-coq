@@ -4,6 +4,8 @@ From Coq Require Import Bool.Bool.
 From Coq Require Import Init.Nat.
 From Coq Require Import Arith.Arith.
 From Coq Require Import Arith.EqNat.
+From Coq Require Import Lists.List.
+Import ListNotations.
 Require Import Maps.
 
 Require Import SyntaxSym.
@@ -38,6 +40,7 @@ Fixpoint sym_aeval(st : sym_state) (t : aexpr) : symExprArit :=
   | AMult a1 a2 => (sym_aeval st a1) * (sym_aeval st a2)
   end.
 
+
 Compute sym_aeval (X !-> x(0) ; Y !-> y(0)) ((X + 1 + Y) * X ).
 (*adding constant folding would be nice*)
 Compute sym_aeval (X !-> (x(0) + 2 + 3)) X.
@@ -53,6 +56,27 @@ Fixpoint sym_beval(st : sym_state) (t : bexpr) : symExprBool :=
   | BLessThan a1 a2 => (sym_aeval st a1) < (sym_aeval st a2)
   end.
 
+Fixpoint vars_arit (t : aexpr) : list string :=
+  match t with
+  | ANum n => []
+  | AVar v => [v]
+  | APlus a1 a2 => (vars_arit a1) ++ (vars_arit a2)
+  | AMult a1 a2 => (vars_arit a1) ++ (vars_arit a2)
+  end.
+Compute vars_arit ((X + 1 + Y) * X).
+(*Compute In X (vars_arit ((X + 1 + Y) * X)). *)
+
+Fixpoint vars_bool (t : bexpr) : list string :=
+  match t with
+  | BTrue  => []
+  | BFalse => []
+  | BNot b => vars_bool b
+  | BAnd b1 b2 => (vars_bool b1) ++ (vars_bool b2)
+  | BEq a1 a2 => (vars_arit a1) ++ (vars_arit a2) 
+  | BLessThan a1 a2 => (vars_arit a1) ++ (vars_arit a2)
+  end.
+Compute vars_bool ( ((X + 1 + Y) * X) = 2).
+
 (*Fixpoint sym_beval' (st : sym_state) (b : bexpr) : bool :=
     match b with
     | BTrue => true
@@ -67,47 +91,83 @@ Compute sym_beval'  (X !-> x(0)) (BNot X). *)
 Compute (sym_beval (X !-> x(5)) (3 = X + 5)).
 
 (*I need to get the conditions!*)
-(*Inductive symPath : Type :=
-  | Not sure I need this since the conditions can be taken from stm*)
+Check [1].
+Check [X ; Y ; Z ; W].
+Inductive event : Type :=
+| DummyE
+| Event (i : tid) (e : symExprBool) (r : list string) (w : list string).
+Definition symPath := list event. 
+
+Check [Event (id 0) (SymBool true) [X ; Y] [X ; Y] ; Event (id 1) (SymBool true) [X ; Y] [X ; Y]].
+
 (*we need to keep conditions*)
 
 
 Open Scope stm_scope.
 (*symbolic evaluation of statements -> we need to add sympaths here*)
 (*if rule is for the moment non-deterministic*)
-(*I think sym_step might be the sympath*)
-Reserved Notation "  t '/' e '/' st '--[' l ']-->s' t' '/' e' '/' st' "
-         (at level 40, st at level 39, t' at level 39).
+(*I think sym_step might be the sympath if we add path conditions*)
+
+(*Issue: how to go from SymExprBool to bool - What is true???*)
+(*Reserved Notation "  t 'WITH' e '/' st '--[' l ']-->s' t' 'WITH' e' '/' st' "
+         (at level 40, e at level 39, st at level 39, t' at level 39). I think there is an issue here*)
 (*I need an extra predicate here*)
 (*the predicate can be illustrated by a symExprBool*)
 (*if this does not work one could change the type of statements??*)
-Inductive sym_step : tid -> (statement * symExprBool * sym_state) ->
-                     (statement * symExprBool * sym_state) -> Prop :=
-    | S_Ass : forall st i a l,        
-         sym_step (l) ((i ::= a),(SymBool true), st) ((SKIP), (SymBool true), (i !-> (sym_aeval st a) ; st))
-    (*| S_SeqStep : forall st s1 s1' s2 st' l,
-        s1 / st --[l]-->s s1' / st' ->
-        (s1 ;; s2) / st --[l]-->s (s1' ;; s2) / st'
-    | S_SeqFinish : forall st s2 l,
-        (SKIP ;; s2) / st --[l]-->s s2 / st 
-   (* | S_IfStep : forall st b s1 s2,
-        (If b THEN s1 ELSE s2) / st --> (If (beval st b) THEN s1 ELSE s2) / st *)
-    | S_IfTrue : forall st s1 s2 b l,
-        (*(sym_beval st b) = SymBool true -> *)
-        (If b THEN s1 ELSE s2) / st --[l]-->s s1 / st
-    | S_IfFalse : forall st s1 s2 b l,
-        (*(sym_beval st b) = SymBool false -> *)
-        (If b THEN s1 ELSE s2) / st --[l]-->s s2 / st
-    | S_While : forall st b s l,
-        (WHILE b DO s END) / st --[l]-->s
-                           (If b THEN (s ;; (WHILE b DO s END)) ELSE SKIP) / st
-    | S_N0While : forall st b n s l,
+
+(*maybe use SymBool True as automatic value*)
+(*I think we actually need to gather the boolean conditions?*)
+Check forall x y, x = y /\ x <> y. 
+
+Inductive sym_step : tid -> (statement * symPath * sym_state) ->
+                     (statement * symPath * sym_state) -> Prop :=
+    | S_Ass : forall st i a l sp,        
+        sym_step (l) (i ::= a, sp, st)
+                 (SKIP,
+                  sp ++ [ Event l (SymBool true) [i] (vars_arit a)],
+                  (i !-> sym_aeval st a ; st)) 
+
+    | S_SeqStep : forall st s1 s1' s2 l sp sp' st',
+        sym_step (l) (s1, sp, st) (s1', sp', st') ->
+        sym_step (l) (s1 ;; s2, sp, st)
+                 (s1' ;; s2, sp', st')
+
+    | S_SeqFinish : forall st s2 l sp,
+        sym_step (l) (SKIP ;; s2, sp, st)
+                 (s2, sp, st)
+
+    | S_IfTrue : forall st b s1 s2 l sp,
+        sym_step (l) (If b THEN s1 ELSE s2, sp, st)
+                 (s1,
+                  sp ++ [Event l (sym_beval st b) [] (vars_bool b)],
+                  st) 
+    | S_IfFalse : forall st b s1 s2 l sp,
+        sym_step (l) (If b THEN s1 ELSE s2, sp, st)
+                 (s2,
+                  sp ++ [Event l (SymNot (sym_beval st b)) [] (vars_bool b)],
+                      st)
+
+    | S_WhileTrue : forall st b s l sp,
+        sym_step (l) (WHILE b DO s END, sp, st)
+                 (WHILE b DO s END,
+                  sp ++ [Event l (sym_beval st b) [] (vars_bool b)],
+                  st)
+    | S_WhileFalse : forall st b s l sp,
+        sym_step (l) (WHILE b DO s END, sp, st)
+                 (SKIP,
+                  sp ++ [Event l (SymNot (sym_beval st b)) [] (vars_bool b)],
+                  st).
+
+
+                 
+                          
+    (*| S_N0While : forall st b n s l,
         n = 0 ->
         (WHILE b FOR n DO s END) / st --[l]-->s
                            (SKIP) / st
      | S_NWhile : forall st b n s l,
         (WHILE b FOR n DO s END) / st --[l]-->s
-                           (If b THEN (s ;; (WHILE b FOR n-1 DO s END)) ELSE SKIP) / st*) .
+                           (If b THEN (s ;; (WHILE b FOR n-1 DO s END)) ELSE SKIP) / st *) 
 (*where " t '/' e '/' st '--[' l ']-->s' t' '/' e' '/' st' " := (sym_step (l) (t,e,st) (t',e',st')). *)
                                                                                                     
     
