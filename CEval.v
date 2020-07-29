@@ -177,23 +177,7 @@ Proof.
   eapply multi_step. apply CS_SeqFinish.
   eapply multi_step. apply CS_N0While. reflexivity.
   eapply multi_refl. Qed.
-   
-
-    (*Adding the threads -> these are wrappend in a thread id*)
-    Inductive tid : Type := id (n : nat). 
-
-    Inductive threadPool : Type :=
-    | Thread (i : tid) (s : statement)
-    | TPar (tp1 tp2: threadPool).
-
-    Notation "'<<' i '|' s '>>'" := (Thread i s).
-    (** Notation " t1 '//' t2 " := (TPar t1 t2) (at level 40, left associativity).
-     This seems to be a bit too heavy *)
-    (*OBS: level 80 is right associative, level 40 is left associative *)
-      
-    Check << id 0 | SKIP >>. 
-    Check (TPar << id 0 | SKIP >> << id 1 | stm_if >>).
-    Check (TPar (TPar << id 0 | SKIP >> << id 1 | stm_if >>) << id 2 | stm_n_while >>). 
+ 
     
     Reserved Notation " t '/' st '-->t' t' '/' st' "
              (at level 40, st at level 39, t' at level 39).
@@ -223,20 +207,12 @@ Notation " t '/' st '-->t*' t' '/' st' " :=
    (multi tpstep  (t,st) (t',st'))
      (at level 40, st at level 39, t' at level 39).
 
-(*Example of statement with threads*)
-Definition stm_thread : threadPool :=
-  (TPar
-     (TPar
-        << id 0 | Y ::= 1 >>
-        << id 1 | (WHILE Y = 0 DO
-                     X ::= X + 1
-                     END) >> )
-        << id 2 | Z ::= 5 >>).
-
 (*Used in proof*)
 Print ex_intro.
 
 (*Examples illustrating how the evaluation of threads works*)
+(*This example also illustrates non-determinism we introduce together with the threadpool/tp_step as
+the value of X is dependent on the execution order*)
 Example tpstep_ex1:
   exists st',
        stm_thread / empty_st  -->t* << id 0 | SKIP >> / st'
@@ -288,7 +264,22 @@ Proof.
   eapply multi_step. apply TS_T1. apply TS_STDone.
   eapply multi_step. apply TS_STDone.
   apply multi_refl.
-  reflexivity. Qed.   
+  reflexivity. Qed.
+
+Example tpstep_article:
+  example_article / ( X !-> 5; Y !-> 5 ) -->t* Thread (id 1) (SKIP) /  (X !->1 ; Y !-> 0 ; X !-> 0 ; X !-> 5; Y !-> 5).
+Proof.
+  unfold example_article.
+  eapply multi_step. apply TS_ST1. apply CS_SeqStep. apply CS_Ass. simpl. 
+  eapply multi_step. apply TS_ST1. apply CS_SeqFinish.
+
+  eapply multi_step. apply TS_ST2. apply CS_IfTrue. simpl. reflexivity.
+  eapply multi_step. apply TS_ST2. apply CS_Ass. simpl.
+
+  eapply multi_step. apply TS_ST1. apply CS_Ass. simpl.
+
+  eapply multi_step. apply TS_STDone. apply multi_refl. Qed. 
+
   
 Close Scope stm_scope.
 

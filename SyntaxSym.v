@@ -86,7 +86,8 @@ Module Syntax.
   Notation "'WHILE' b 'DO' s 'END'" := 
     (SWhile b s) (at level 80, right associativity) : stm_scope. 
   Notation "'WHILE' b 'FOR' n 'DO' s 'END'" := 
-    (SNWhile b n s) (at level 80, right associativity) : stm_scope.   
+    (SNWhile b n s) (at level 80, right associativity) : stm_scope.
+  (*If because of COQ built-in notaion*)
   Notation "'If' b 'THEN' s1 'ELSE' s2" :=
     (SIf b s1 s2) (at level 80, right associativity) : stm_scope.
 
@@ -114,6 +115,43 @@ Module Syntax.
     WHILE ~(X = 4) FOR 2 DO
        X ::= X + 1
                    END.
+
+  (*Adding the threads -> these are wrappend in a thread id*)
+   Inductive tid : Type := id (n : nat). 
+
+   Inductive threadPool : Type :=
+   | Thread (i : tid) (s : statement)
+   | TPar (tp1 tp2: threadPool).
+
+   Notation "'<<' i '|' s '>>'" := (Thread i s).
+    (** Notation " t1 '//' t2 " := (TPar t1 t2) (at level 40, left associativity).
+     This seems to be a bit too heavy *)
+    (*OBS: level 80 is right associative, level 40 is left associative *)
+
+      
+   Check << id 0 | SKIP >>. 
+   Check (TPar << id 0 | SKIP >> << id 1 | stm_if >>).
+   Check (TPar (TPar << id 0 | SKIP >> << id 1 | stm_if >>) << id 2 | stm_n_while >>).
+
+   
+(*Example of statement with threads*)
+ Definition stm_thread : threadPool :=
+  (TPar
+     (TPar
+        << id 0 | Y ::= 1 >>
+        << id 1 | (WHILE Y = 0 DO
+                     X ::= X + 1
+                     END) >> )
+     << id 2 | Z ::= 5 >>).
+
+ Definition example_article : threadPool :=
+   (TPar
+      << id 1 | X ::= 0 ;;
+                X ::= Y + 1 >>
+      << id 2 | If X = 0 THEN
+                   Y ::= 0
+                ELSE
+                   Y ::= 1 >>).
 
   (*Ekstra: procedures and programs*)
   Inductive procedure : Type :=

@@ -93,16 +93,14 @@ Compute (sym_beval (X !-> x(5)) (3 = X + 5)).
 (*I need to get the conditions!*)
 Check [1].
 Check [X ; Y ; Z ; W].
+(**)
 Inductive event : Type :=
-| DummyE
 | Event (i : tid) (e : symExprBool) (r : list string) (w : list string).
 Definition symPath := list event. 
 
 Check [Event (id 0) (SymBool true) [X ; Y] [X ; Y] ; Event (id 1) (SymBool true) [X ; Y] [X ; Y]].
 
 (*we need to keep conditions*)
-
-
 Open Scope stm_scope.
 (*symbolic evaluation of statements -> we need to add sympaths here*)
 (*if rule is for the moment non-deterministic*)
@@ -117,59 +115,74 @@ Open Scope stm_scope.
 
 (*maybe use SymBool True as automatic value*)
 (*I think we actually need to gather the boolean conditions?*)
-Check forall x y, x = y /\ x <> y. 
+Check forall x y, x = y /\ x <> y.
+
+Reserved Notation "  t 'WITH' e '/' st '--[' l ']-->s' t' 'WITH' e' '/' st' "
+         (at level 40, e at level 39, st at level 39, t' at level 39). 
 
 Inductive sym_step : tid -> (statement * symPath * sym_state) ->
-                     (statement * symPath * sym_state) -> Prop :=
+                            (statement * symPath * sym_state) -> Prop :=
+
     | S_Ass : forall st i a l sp,        
         sym_step (l) (i ::= a, sp, st)
-                 (SKIP,
-                  sp ++ [ Event l (SymBool true) [i] (vars_arit a)],
-                  (i !-> sym_aeval st a ; st)) 
+                     (SKIP,
+                      sp ++ [ Event l (SymBool true) [i] (vars_arit a)],
+                      (i !-> sym_aeval st a ; st)) 
 
     | S_SeqStep : forall st s1 s1' s2 l sp sp' st',
         sym_step (l) (s1, sp, st) (s1', sp', st') ->
         sym_step (l) (s1 ;; s2, sp, st)
-                 (s1' ;; s2, sp', st')
+                     (s1' ;; s2, sp', st')
 
     | S_SeqFinish : forall st s2 l sp,
         sym_step (l) (SKIP ;; s2, sp, st)
-                 (s2, sp, st)
+                     (s2, sp, st)
 
     | S_IfTrue : forall st b s1 s2 l sp,
         sym_step (l) (If b THEN s1 ELSE s2, sp, st)
-                 (s1,
-                  sp ++ [Event l (sym_beval st b) [] (vars_bool b)],
-                  st) 
+                     (s1,
+                      sp ++ [Event l (sym_beval st b) [] (vars_bool b)],
+                      st) 
     | S_IfFalse : forall st b s1 s2 l sp,
         sym_step (l) (If b THEN s1 ELSE s2, sp, st)
-                 (s2,
-                  sp ++ [Event l (SymNot (sym_beval st b)) [] (vars_bool b)],
+                     (s2,
+                      sp ++ [Event l (SymNot (sym_beval st b)) [] (vars_bool b)],
                       st)
 
     | S_WhileTrue : forall st b s l sp,
         sym_step (l) (WHILE b DO s END, sp, st)
-                 (WHILE b DO s END,
-                  sp ++ [Event l (sym_beval st b) [] (vars_bool b)],
-                  st)
+                     (WHILE b DO s END,
+                     sp ++ [Event l (sym_beval st b) [] (vars_bool b)],
+                     st)
     | S_WhileFalse : forall st b s l sp,
         sym_step (l) (WHILE b DO s END, sp, st)
-                 (SKIP,
-                  sp ++ [Event l (SymNot (sym_beval st b)) [] (vars_bool b)],
-                  st).
+                     (SKIP,
+                      sp ++ [Event l (SymNot (sym_beval st b)) [] (vars_bool b)],
+                      st)
 
-
-                 
-                          
-    (*| S_N0While : forall st b n s l,
+    | S_N0While : forall st b n s l sp,
         n = 0 ->
-        (WHILE b FOR n DO s END) / st --[l]-->s
-                           (SKIP) / st
-     | S_NWhile : forall st b n s l,
-        (WHILE b FOR n DO s END) / st --[l]-->s
-                           (If b THEN (s ;; (WHILE b FOR n-1 DO s END)) ELSE SKIP) / st *) 
+        sym_step (l) (WHILE b FOR n DO s END, sp, st)
+                     (SKIP, sp, st)
+       
+    | S_NWhileTrue : forall st b n s l sp,
+        sym_step (l) (WHILE b FOR n DO s END, sp, st)
+                     (WHILE b FOR (n-1) DO s END,
+                     sp ++ [Event l (sym_beval st b) [] (vars_bool b)],
+                     st)
+                     
+    | S_NWhileFalse : forall st b n s l sp,
+        sym_step (l) (WHILE b FOR n DO s END, sp, st)
+                     (SKIP,
+                      sp ++ [Event l (SymNot (sym_beval st b)) [] (vars_bool b)],
+                      st).
+                                 
 (*where " t '/' e '/' st '--[' l ']-->s' t' '/' e' '/' st' " := (sym_step (l) (t,e,st) (t',e',st')). *)
-                                                                                                    
+
+(* Print Coercions.  *)
+(* Print Classes. *)
+(* Print Graph.  *)
+(*Parameter Graph : Type. *)
     
 Notation " t '/' st '--[' l ']-->s*' t' '/' st' " :=
    (multi (sym_step (l)) (t,st) (t',st'))
