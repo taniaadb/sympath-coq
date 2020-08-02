@@ -51,6 +51,7 @@ Module Syntax.
   Bind Scope expr_scope with aexpr.
   Bind Scope expr_scope with bexpr.
   Delimit Scope expr_scope with expr.
+  Check (0)%expr.
 
   Notation "x + y" := (APlus x y) (at level 50, left associativity) : expr_scope.
 
@@ -144,6 +145,7 @@ Module Syntax.
                      END) >> )
      << id 2 | Z ::= 5 >>).
 
+
  Definition example_article : threadPool :=
    (TPar
       << id 1 | X ::= 0 ;;
@@ -169,9 +171,40 @@ Module Syntax.
   Inductive LNat :=
   | x (n: nat)
   | y (n: nat)
-  | z (n: nat)
-  | w (n: nat) .
+  | z (n: nat).
   Print LNat.
+
+  Fixpoint comp_LNat (l1 l2: LNat) : bool :=
+    match l1 with
+    | x n =>
+      match l2 with
+      | x n' =>
+        if beq_nat n n' then true else false
+      | y n' => false
+      | z n' => false
+      end
+        
+    | y n =>
+      match l2 with
+      | x n' => false       
+      | y n' => 
+        if beq_nat n n' then true else false
+      | z n' => false
+      end
+        
+    | z n =>
+      match l2 with
+      | x n' => false
+      | y n' => false
+      | z n' =>
+        if beq_nat n n' then true else false
+      end
+    end .
+  
+  Check x(0). 
+  Compute (comp_LNat (x(0)) (x(0))).      
+  Compute comp_LNat (x(0)) (x(1)).
+  Compute comp_LNat (x(0)) (y(0)).
 
   Check x(0).
   Check y(8).
