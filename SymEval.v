@@ -5,11 +5,12 @@ From Coq Require Import Init.Nat.
 From Coq Require Import Arith.Arith.
 From Coq Require Import Arith.EqNat.
 From Coq Require Import Lists.List.
+From Coq Require Import Program.Basics. (*for function composition*)
 Import ListNotations.
 Require Import Maps.
 
 Require Import SyntaxSym.
-Require Import CEval.
+Require Import CEval. (*always need to compile this if i compile SyntaxSym*)
 Import Syntax.
 Import CEvalStep.
 
@@ -338,37 +339,103 @@ Compute (sym_cond  [id 0⟨SymBool true, [X], []⟩ ;
              id 0⟨SymBool true, [Z], []⟩]).
 
 (*the variables are in symaritt , we have to replace there *)
-Compute comp_LNat (x(0)) (x(0)).
+Compute comp_symExprArit (x(0)) (x(0)).
+
+(*attempting the subst composition, these should all be added in Maps.v*)
+Definition total_sym_map (A : Type) := symExprArit -> A.
+Definition s_empty {A : Type} (v : A) : total_sym_map A :=
+  (fun _ => v).
+Definition s_update {A : Type} (m : total_sym_map A)
+                    (x : symExprArit) (v : A) :=
+  fun x' => if comp_symExprArit x x' then v else m x'.
+Notation "'_' '||->' v" := (s_empty v)
+                             (at level 100, right associativity).
+
+Notation "x '||->' v ';' m" := (s_update m x v)
+                              (at level 100, v at next level, right associativity).
+
+Definition subst_state := total_sym_map nat.
+(*default value*)
+Definition empty_subst_st := (_ ||-> 0). (*the same as for state!*)
+Notation "a '||->' x" := (s_update empty_subst_st a x) (at level 100).
+Check x 0.
+Check (X |-> x 0).
+Check (X !-> 1). 
+Check ((x 0) ||-> 1).
+
+(*OBS: these WILL have the same variables always as keys*)
+(*cannot match! this has to be given manually for now *)
+
+Fixpoint subst_symExprArit (a : symExprArit) (s : subst_state) : nat :=
+  match a with 
+  | SymLNat x' => s x'
+  | SymNat n => n
+  | SymPlus a1 a2 => (subst_symExprArit a1 s) + (subst_symExprArit a2 s)
+  | SymMult a1 a2 => (subst_symExprArit a1 s) * (subst_symExprArit a2 s)
+  end.
+
+Definition init_state := (x 0 ||-> 1; y 0 ||-> 2).
+Print init_state.
+Check (x 0 + 1 + y 0).
+Compute subst_symExprArit (x 0 + 1 * y 0) init_state. (*WORKS!*)
+Compute (negb true).
+Compute (andb true false).
+Compute (eqb 1 2).
+Compute (leb 2 1).
+
+(*should i maybe have a separate function for bool vs list bool *)
+Fixpoint subst_symExprBool (b : symExprBool) (s : subst_state) : bool :=
+  match b with
+  | SymBool b' => b'
+  | SymNot b' => negb (subst_symExprBool b' s)
+  | SymAnd b1 b2 => andb (subst_symExprBool b1 s) (subst_symExprBool b2 s)
+  | SymEq a1 a2 => eqb (subst_symExprArit a1 s) (subst_symExprArit a2 s)
+  | SymLessThan a1 a2 => leb (subst_symExprArit a1 s) (subst_symExprArit a2 s)
+  end.
+
+Check (x 0 + 1 = y 0).
+Compute subst_symExprBool (x 0 + 1 = y 0) init_state. 
 
 
-Reserved Notation "'[' x '::=' s ']' t" (at level 20).
-(*what should the result be*)
-(*cannot say for sure it is an aexpr, needs to be symExprArit*)
-(*we can make everything symExprArit and use constant folding*)
-(*another alternative is to assume that what we want to substitute is going to be there *)
+Fixpoint subst_sym_cond (c : list symExprBool) (s : subst_state) : list bool :=
+  match c with 
+  | [] => []
+  | e :: t => subst_symExprBool e s :: subst_sym_cond t s
+  end.
 
-Fixpoint subst (x : SymLNat) (n : nat) (c : symExprArit) : aexpr := (*nat or SymAexpr*)
-  match c with
-  | SymLNat x' =>
-    if comp_LNat x x' then n else c
-  | SymNot b => negb (subst x n b)
-  | Sy
-                       
-  | var x' ⇒
-      if eqb_string x x' then s else t
-  | abs x' T t1 ⇒
-      abs x' T (if eqb_string x x' then t1 else ([x:=s] t1))
-  | app t1 t2 ⇒
-      app ([x:=s] t1) ([x:=s] t2)
-  | tru ⇒
-      tru
-  | fls ⇒
-      fls
-  | test t1 t2 t3 ⇒
-      test ([x:=s] t1) ([x:=s] t2) ([x:=s] t3)
-  end
+Definition ex_path := [SymBool true; SymNot (x 0 < 5); (y 0 = x 0)].
+Check ex_path.
+Compute subst_sym_cond ex_path (x 0 ||-> 1 ; y 0 ||-> 1).
+Example cond_ex :
+  subst_sym_cond ex_path (x 0 ||-> 1 ; y 0 ||-> 1) = [true; false; true]. 
+Proof.     
+  simpl. reflexivity. Qed.
 
-where "'[' x ':=' s ']' t" := (subst x s t).
+(*can use count occurances, find, existsb -> only figgured out existsb/forallb*)
+Print forallb.
+Compute forallb (andb true) [false; true].
+Example cond_false :
+  forallb (andb true) (subst_sym_cond ex_path (x 0 ||-> 1 ; y 0 ||-> 1)) = false.
+Proof. simpl. reflexivity. Qed.
+Example cond_true :
+  forallb (andb true) (subst_sym_cond ex_path (x 0 ||-> 7 ; y 0 ||-> 7)) = true.
+Proof. simpl. reflexivity. Qed.
+
+Compute (compose (x 0 ||-> 1) (X |-> x 0 )) X . (*works, but only with the same expressions... !!!!!!*)
+Check (compose (x 0 ||-> 1) (X |-> x 0 )). (*string -> nat*)
+(*Maybe it is enough as we have original subst?*)
+(*Trying to express correctness*)
+
+(*Theorem exists_concrete_finish:
+    forall st st',
+    (*there are 2 valuations for which if i reach the end of the eval *)
+      (| st , example_article |) -->tc* (| st' , << id 1 | SKIP >> |) ->
+    exists st_s st_s' sp, 
+    (*I can find a symbolic evaluation for them*)  
+      (| st_s, [], example_article |) -->ts* (| st_s', sp, << id 1 | SKIP >>|).  *)
+
+
+
 
 Close Scope symexpr. 
 Close Scope stm_scope.                           
