@@ -268,7 +268,8 @@ Proof.
   apply multi_refl.
   reflexivity. Qed.
 
-Example tpstep_article_ex1:
+Check (X !-> 1; Y !-> 0 ; X !-> 0).
+Example tpstep_article : 
   exists st st',
     (| st, example_article |) -->tc* (| st', << id 1 | SKIP >>|).
 Proof.
@@ -313,3 +314,4 @@ Theorem cstep_deterministic :
 Proof. Admitted.
 
 End CEvalStep.
+

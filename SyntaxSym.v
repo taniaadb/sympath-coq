@@ -173,41 +173,7 @@ Module Syntax.
   | y (n: nat)
   | z (n: nat).
   Print LNat.
-
-  Fixpoint comp_LNat (l1 l2: LNat) : bool :=
-    match l1 with
-    | x n =>
-      match l2 with
-      | x n' =>
-        if beq_nat n n' then true else false
-      | y n' => false
-      | z n' => false
-      end
-        
-    | y n =>
-      match l2 with
-      | x n' => false       
-      | y n' => 
-        if beq_nat n n' then true else false
-      | z n' => false
-      end
-        
-    | z n =>
-      match l2 with
-      | x n' => false
-      | y n' => false
-      | z n' =>
-        if beq_nat n n' then true else false
-      end
-    end .
   
-  Check x(0). 
-  Compute (comp_LNat (x(0)) (x(0))).      
-  Compute comp_LNat (x(0)) (x(1)).
-  Compute comp_LNat (x(0)) (y(0)).
-
-  Check x(0).
-  Check y(8).
 
   (*Symbolic arithmetical expressions*)
   Inductive symExprArit : Type :=
@@ -249,5 +215,56 @@ Module Syntax.
 
   Check (1 + 2)%expr.
   Check (1 + AVar "x")%expr.
+
+  (*We need this for the substitution connecting symbolic and concrete eval*)
+  (*need to change the type for function composition -> simplified, might need change 
+   in order to make it proper*)
+  Definition comp_symExprArit (l1 l2: symExprArit) : bool :=
+    match l1 with
+    | x n =>
+      match l2 with
+      | x n' =>
+        if beq_nat n n' then true else false
+      | y n' => false
+      | z n' => false
+      | SymNat n => false
+      | SymPlus a1 a2 => false
+      | SymMult a1 a2 => false
+      end
+        
+    | y n =>
+      match l2 with
+      | x n' => false       
+      | y n' => 
+        if beq_nat n n' then true else false
+      | z n' => false
+      | SymNat n => false
+      | SymPlus a1 a2 => false
+      | SymMult a1 a2 => false
+      end
+        
+    | z n =>
+      match l2 with
+      | x n' => false
+      | y n' => false
+      | z n' =>
+        if beq_nat n n' then true else false
+      | SymNat n => false
+      | SymPlus a1 a2 => false
+      | SymMult a1 a2 => false
+      end
+    | SymNat n => false
+    | SymPlus a1 a2 => false
+    | SymMult a1 a2 => false
+
+    end .
+    
+  Check x(0). 
+  Compute (comp_symExprArit (x(0)) (x(0))).      
+  Compute comp_symExprArit (x(0)) (x(1)).
+  Compute comp_symExprArit (x(0)) (y(0)).
+
+  Check x(0).
+  Check y(8).
 
 End Syntax.

@@ -1,33 +1,3 @@
-(** * Maps: Total and Partial Maps *)
-
-(** _Maps_ (or _dictionaries_) are ubiquitous data structures both
-    generally and in the theory of programming languages in
-    particular; we're going to need them in many places in the coming
-    chapters.  They also make a nice case study using ideas we've seen
-    in previous chapters, including building data structures out of
-    higher-order functions (from [Basics] and [Poly]) and the use of
-    reflection to streamline proofs (from [IndProp]).
-
-    We'll define two flavors of maps: _total_ maps, which include a
-    "default" element to be returned when a key being looked up
-    doesn't exist, and _partial_ maps, which return an [option] to
-    indicate success or failure.  The latter is defined in terms of
-    the former, using [None] as the default element. *)
-
-(* ################################################################# *)
-(** * The Coq Standard Library *)
-
-(** One small digression before we begin...
-
-    Unlike the chapters we have seen so far, this one does not
-    [Require Import] the chapter before it (and, transitively, all the
-    earlier chapters).  Instead, in this chapter and from now, on
-    we're going to import the definitions and theorems we need
-    directly from Coq's standard library stuff.  You should not notice
-    much difference, though, because we've been careful to name our
-    own definitions and theorems the same as their counterparts in the
-    standard library, wherever they overlap. *)
-
 From Coq Require Import Arith.Arith.
 From Coq Require Import Bool.Bool.
 Require Export Coq.Strings.String.
@@ -43,16 +13,6 @@ Import ListNotations.
 
 (* ################################################################# *)
 (** * Identifiers *)
-
-(** First, we need a type for the keys that we use to index into our
-    maps.  In [Lists.v] we introduced a fresh type [id] for a similar
-    purpose; here and for the rest of _Software Foundations_ we will
-    use the [string] type from Coq's standard library. *)
-
-(** To compare strings, we define the function [eqb_string], which
-    internally uses the function [string_dec] from Coq's string
-    library. *)
-
 Definition eqb_string (x y : string) : bool :=
   if string_dec x y then true else false.
 
@@ -73,9 +33,6 @@ Proof. intros s. unfold eqb_string. destruct (string_dec s s) as [|Hs].
   - destruct Hs. reflexivity.
 Qed.
 
-(** The following useful property follows from an analogous
-    lemma about strings: *)
-
 Theorem eqb_string_true_iff : forall x y : string,
     eqb_string x y = true <-> x = y.
 Proof.
@@ -87,8 +44,6 @@ Proof.
      + intros contra. discriminate contra.
      + intros H. rewrite H in Hs. destruct Hs. reflexivity.
 Qed.
-
-(** Similarly: *)
 
 Theorem eqb_string_false_iff : forall x y : string,
     eqb_string x y = false <-> x <> y.
@@ -147,19 +102,12 @@ Definition t_update {A : Type} (m : total_map A)
     [t_update] takes a _function_ [m] and yields a new function
     [fun x' => ...] that behaves like the desired map. *)
 
-(** For example, we can build a map taking [string]s to [bool]s, where
-    ["foo"] and ["bar"] are mapped to [true] and every other key is
-    mapped to [false], like this: *)
-
 Definition examplemap :=
   t_update (t_update (t_empty false) "foo" true)
            "bar" true.
 
-(** Next, let's introduce some new notations to facilitate working
-    with maps. *)
+(*Notation*)
 
-(** First, we will use the following notation to create an empty
-    total map with a default value. *)
 Notation "'_' '!->' v" := (t_empty v)
   (at level 100, right associativity).
 
@@ -168,19 +116,13 @@ Example example_empty := (_ !-> false).
 (** We then introduce a convenient notation for extending an existing
     map with some bindings. *)
 Notation "x '!->' v ';' m" := (t_update m x v)
-                              (at level 100, v at next level, right associativity).
-
-(** The [examplemap] above can now be defined as follows: *)
+                                (at level 100, v at next level, right associativity).
 
 Definition examplemap' :=
   ( "bar" !-> true;
     "foo" !-> true;
     _     !-> false
   ).
-
-(** This completes the definition of total maps.  Note that we
-    don't need to define a [find] operation because it is just
-    function application! *)
 
 Example update_example1 : examplemap' "baz" = false.
 Proof. reflexivity. Qed.
@@ -194,18 +136,6 @@ Proof. reflexivity. Qed.
 Example update_example4 : examplemap' "bar" = true.
 Proof. reflexivity. Qed.
 
-(** To use maps in later chapters, we'll need several fundamental
-    facts about how they behave. *)
-
-(** Even if you don't work the following exercises, make sure
-    you thoroughly understand the statements of the lemmas! *)
-
-(** (Some of the proofs require the functional extensionality axiom,
-    which is discussed in the [Logic] chapter.) *)
-
-(** **** Exercise: 1 star, standard, optional (t_apply_empty)  
-
-    First, the empty map returns its default element for all keys: *)
 
 Lemma t_apply_empty : forall (A : Type) (x : string) (v : A),
     (_ !-> v) x = v.
@@ -213,11 +143,6 @@ Proof.
   intros. unfold t_empty . reflexivity. Qed. 
 (** [] *)
 
-(** **** Exercise: 2 stars, standard, optional (t_update_eq)  
-
-    Next, if we update a map [m] at a key [x] with a new value [v]
-    and then look up [x] in the map resulting from the [update], we
-    get back [v]: *)
 Inductive id : Type :=
   | Id : nat -> id.
 
@@ -235,14 +160,6 @@ Proof.
   (** Vr2_ unfold eqb_string. destruct (string_dec x x) as [|Hx] .
   -reflexivity.
    -rewrite beq_id_refl  *)
-  
-(** [] *)
-
-(** **** Exercise: 2 stars, standard, optional (t_update_neq)  
-
-    On the other hand, if we update a map [m] at a key [x1] and then
-    look up a _different_ key [x2] in the resulting map, we get the
-    same result that [m] would have given: *)
 
 Theorem t_update_neq : forall (A : Type) (m : total_map A) x1 x2 v,
     x1 <> x2 ->
@@ -251,16 +168,7 @@ Proof.
   intros.  unfold t_update. rewrite false_eqb_string .
   - reflexivity.
     - apply H. Qed. 
-  
-(** [] *)
 
-(** **** Exercise: 2 stars, standard, optional (t_update_shadow)  
-
-    If we update a map [m] at a key [x] with a value [v1] and then
-    update again with the same key [x] and another value [v2], the
-    resulting map behaves the same (gives the same result when applied
-    to any key) as the simpler map obtained by performing just
-    the second [update] on [m]: *)
 
 Lemma t_update_shadow : forall (A : Type) (m : total_map A) x v1 v2,
     (x !-> v2 ; x !-> v1 ; m) = (x !-> v2 ; m).
@@ -269,37 +177,12 @@ Proof.
   -reflexivity. 
    -reflexivity. Qed. 
 
-(** [] *)
-
-(** For the final two lemmas about total maps, it's convenient to use
-    the reflection idioms introduced in chapter [IndProp].  We begin
-    by proving a fundamental _reflection lemma_ relating the equality
-    proposition on [id]s with the boolean function [eqb_id]. *)
-
-(** **** Exercise: 2 stars, standard, optional (eqb_stringP)  
-
-    Use the proof of [eqbP] in chapter [IndProp] as a template to
-    prove the following: *)
-
 Lemma eqb_stringP : forall x y : string,
     reflect (x = y) (eqb_string x y).
 Proof.
   intros. apply iff_reflect. rewrite eqb_string_true_iff. reflexivity. Qed. 
  
-(** [] *)
 
-(** Now, given [string]s [x1] and [x2], we can use the tactic
-    [destruct (eqb_stringP x1 x2)] to simultaneously perform case
-    analysis on the result of [eqb_string x1 x2] and generate
-    hypotheses about the equality (in the sense of [=]) of [x1]
-    and [x2]. *)
-
-(** **** Exercise: 2 stars, standard (t_update_same)  
-
-    With the example in chapter [IndProp] as a template, use
-    [eqb_stringP] to prove the following theorem, which states that
-    if we update a map to assign key [x] the same value as it already
-    has in [m], then the result is equal to [m]: *)
 
 Theorem t_update_same : forall (A : Type) (m : total_map A) x,
     (x !-> m x ; m) = m.
@@ -310,11 +193,6 @@ Proof.
 Admitted. 
    (** [] *)
 
-(** **** Exercise: 3 stars, standard, recommended (t_update_permute)  
-
-    Use [eqb_stringP] to prove one final property of the [update]
-    function: If we update a map [m] at two distinct keys, it doesn't
-    matter in which order we do the updates. *)
 
 Theorem t_update_permute : forall (A : Type) (m : total_map A)
                                   v1 v2 x1 x2,
