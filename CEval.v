@@ -185,6 +185,10 @@ Proof.
     (*Non-deterministic evaluation when threads are involved*)
     (*Also a small step evaluation as a relation*)
     Inductive tpstep : (state * threadPool) -> (state * threadPool) -> Prop :=
+    | TS_T0 : forall st st' n stm stm',
+        (|| st, stm ||) -->c (|| st', stm' ||) ->
+        (| st, << id n | stm >> |) -->tc
+        (| st', << id n | stm' >> |)
     | TS_T1 : forall st t1 t1' t2 st',
         (| st , t1 |) -->tc (| st' , t1' |) ->
         (| st, TPar t1 t2 |) -->tc (| st', TPar t1' t2 |)
@@ -201,7 +205,9 @@ Proof.
         (| st', TPar t1 << id n | s2' >> |)
     | TS_STDone : forall st n n',
         (| st, TPar << id n | SKIP >> << id n' | SKIP >> |) -->tc
-        (| st, << id n | SKIP >> |) 
+                                                            (| st, << id n | SKIP >> |)
+                                                            
+                                                            
         
           where "'(|' st ',' t '|)' '-->tc' '(|' st' ',' t' '|)'" := (tpstep (st, t) (st', t')).
 
