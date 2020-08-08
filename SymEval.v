@@ -4,8 +4,9 @@ From Coq Require Import Bool.Bool.
 From Coq Require Import Init.Nat.
 From Coq Require Import Arith.Arith.
 From Coq Require Import Arith.EqNat.
-From Coq Require Import Lists.List.
+From Coq Require Import Lists.List. 
 From Coq Require Import Program.Basics. (*for function composition*)
+From Coq Require Import Logic.FunctionalExtensionality. (*for equal maos*)
 Import ListNotations.
 Require Import Maps.
 
@@ -19,24 +20,34 @@ Module SymEvalStep.
 (*as variables are defines only for arithmetical expressions we use
 symExprArit as type*)
 
-Open Scope symexpr. 
-Definition sym_state := total_map symExprArit.
-(*default value*)
-Notation "'_' '|->' v" := (t_empty v) (at level 100, right associativity).
-Notation "x '|->' v ';' m" := (t_update m x v)
+Open Scope symexpr.
+(*Need to update the notation for the map for the symbolic execution*)
+Definition tsym_map (A : Type) := string -> A.
+Definition ts_empty {A : Type} (v : A) : tsym_map A :=
+  (fun _ => v).
+Definition ts_update {A : Type} (m : tsym_map A)
+                    (x : string) (v : A) :=
+  fun x' => if eqb_string x x' then v else m x'.
+(*empty*)
+Notation "'_' '|->' v" := (ts_empty v)
+                            (at level 100, right associativity).
+(*update*)
+Notation "x '|->' v ';' m" := (ts_update m x v)
                               (at level 100, v at next level, right associativity).
 
+(*The map we are working with*)
+Definition sym_state := tsym_map symExprArit.
 Definition empty_sym_st := (_ |-> SymNat(0)).
-Check empty_sym_st. 
-
-(*Classic notation for maps*)
+(*singleton*)
 Notation "a '|->' x" := (t_update empty_sym_st a x) (at level 100).
+
+Check (X |-> x 0).
+Check (X !-> 1). (*we notice the difference between concrete and symbolic states*)
 Compute empty_sym_st .
-Compute empty_sym_st "x"%string .
 Compute (X |-> x(0) + 3 ; X |-> x(0); empty_sym_st) X .
-Check ( X !-> 0). (*string -> nat, but it goes through the notation defined here...*)
   
 (*symbolic evaluation of arithmetic expressions*)
+(*we need this for conretization function*)
 Fixpoint sym_aeval(st : sym_state) (t : aexpr) : symExprArit :=
   match t with
   | ANum n =>
@@ -45,7 +56,6 @@ Fixpoint sym_aeval(st : sym_state) (t : aexpr) : symExprArit :=
   | APlus a1 a2 => (sym_aeval st a1) + (sym_aeval st a2)
   | AMult a1 a2 => (sym_aeval st a1) * (sym_aeval st a2)
   end.
-
 
 Compute sym_aeval (X |-> x(0) ; Y |-> y(0)) ((X + 1 + Y) * X ).
 
@@ -71,7 +81,6 @@ Fixpoint vars_arit (t : aexpr) : list string :=
   | AMult a1 a2 => (vars_arit a1) ++ (vars_arit a2)
   end.
 Compute vars_arit ((X + 1 + Y) * X).
-(*Compute In X (vars_arit ((X + 1 + Y) * X)). *)
 
 Fixpoint vars_bool (t : bexpr) : list string :=
   match t with
@@ -89,24 +98,18 @@ Compute (sym_beval (X |-> x(5)) (3 = X + 5)).
 (*I need to get the conditions!*)
 Check [1].
 Check [X ; Y ; Z ; W].
-(*Can also add the empty path and put paths together is that is to be prefered, maybe easier to
-access the variables and compare them like that?*)
 
 Inductive event : Type :=
-(*| ε  *)
 | Event (i : tid) (e : symExprBool) (w : list string) (r : list string).
-(*| Path (p1 p2 : symPath).*)
 
-Definition symPath := list event. (*Alternative is to have only a list of events!*)
+Definition symPath := list event.
+(*Attempting to bring it closer to the notation in the article*)
 Notation "i '⟨' e ',' w ',' r '⟩'" := (Event i e w r) (at level 80).
-(*Notation "p1 '·' p2" := (Path p1 p2) (at level 80). *)
 
 Check [Event (id 0) (SymBool true) [X ; Y] [X ; Y] ; Event (id 1) (SymBool true) [X ; Y] [X ; Y]]. 
 Check [id 0⟨SymBool true, [X;Y], [X;Y]⟩ ; (id 1⟨SymBool true, [X;Y], [X;Y]⟩)].
 
 Open Scope stm_scope.
-
-(*Issue: how to go from SymExprBool to bool - What is true???*)
 
 Reserved Notation "'(||' st ',' sp ',' t '||)' '--[' l ']-->s' '(||' st' ',' sp' ',' t' '||)'"
          (at level 40, st at level 39, t' at level 39). 
@@ -159,6 +162,7 @@ where " '(||' st ',' sp ',' t '||)' '--[' l ']-->s' '(||' st' ',' sp' ',' t' '||
         (sym_step (l) (st,sp,t) (st',sp',t')) . 
 
 (*Example - one event*)
+(*We use a syntetic id in order to make this work as our evaluation is based on threads*)
 Example sym_step_ex1 :
   (|| (X |-> x(0)) , [] ,  X ::= 1 ||) --[id 0]-->s
   (|| (X |-> 1; X |-> x(0)), [id 0⟨SymBool true, [X], []⟩], SKIP ||).
@@ -169,8 +173,6 @@ Notation "'(||' st ',' sp ',' t '||)' '--[' l ']-->s*' '(||' st' ',' sp' ',' t' 
    (multi (sym_step (l)) (st,sp, t) (st',sp',t'))
      (at level 40, st at level 39, t' at level 39).
 
-(*We do not care about the truth value of the events in the sympath, this is relevant when conncecting
-concrete and symbolic evaluation*)
 
 (*Example - Choosing the false branch*)
 Example sym_step_if_false:
@@ -187,7 +189,6 @@ Proof.
   eapply multi_refl. Qed.
 
 (*Choosing the true branch*)
-Check (1 < 1). (*=> symExprBool*)
 Example sym_step_if_true:
   (|| (X |-> x(0); Y |-> y(0); Z |-> z(0)), [],  stm_if ||) --[id 0]-->s*
   (|| (Y |-> 3; X |-> 1; X |-> x(0); Y |-> y(0); Z |-> z(0)),
@@ -195,7 +196,6 @@ Example sym_step_if_true:
              (*next we go on a different branch*)
              id 0⟨(1 < 1), [], [X]⟩;
              id 0⟨SymBool true, [Y], []⟩], SKIP ||).
-
 Proof.
   unfold stm_if.
   eapply multi_step. apply S_SeqStep. apply S_Ass. simpl.
@@ -205,7 +205,6 @@ Proof.
 
 (*symbolic evaluation of threads -> non-deterministc*)
 (*OBS: we always reduce to the first thread*)
-  (*OBS:Where do we create the sym_paths?*)
 
 (*Reserved Notation "'(||' st ',' sp ',' t '||)' '--[' l ']-->s' '(||' st' ',' sp' ',' t' '||)'"
   (at level 40, st at level 39, t' at level 39). *)
@@ -214,7 +213,12 @@ Reserved Notation "'(|' st ',' sp ',' t '|)' '-->ts' '(|' st' ',' sp' ',' t' '|)
          (at level 40, st at level 39, t' at level 39).
 
 Inductive tp_sym_step : (sym_state * symPath * threadPool ) -> (sym_state * symPath * threadPool ) -> Prop :=
-     | S_T1 : forall st t1 t1' t2 st' sp sp',
+(*new rule that we require -> what happens when we only have 1 thread?*)
+    | S_T0 : forall st st' l stm stm' sp sp',
+        (|| st, sp, stm ||) --[l]-->s (|| st', sp', stm' ||) ->
+        (| st, sp, << l | stm >> |) -->ts (| st', sp', << l | stm' >> |)
+
+    | S_T1 : forall st t1 t1' t2 st' sp sp',
         (| st, sp, t1 |) -->ts (| st', sp', t1' |) ->
         (| st, sp, (TPar t1 t2) |) -->ts
         (| st', sp', (TPar t1' t2) |)
@@ -224,20 +228,20 @@ Inductive tp_sym_step : (sym_state * symPath * threadPool ) -> (sym_state * symP
         (| st, sp, (TPar t1 t2) |) -->ts
         (| st', sp', (TPar t1 t2') |)
    
-    | S_ST1 : forall st s1 s1' st' n t2 sp sp', (*maybe i can use l instead of id n*)
+    | S_ST1 : forall st s1 s1' st' l t2 sp sp',
         (*We need to initialise sym_paths*)
-        (|| st, sp, s1 ||) --[id n]-->s (|| st', sp', s1' ||) ->
-        (| st, sp, (TPar << id n | s1 >> t2) |)  -->ts
-        (| st', sp', (TPar << id n | s1' >> t2) |)
+        (|| st, sp, s1 ||) --[l]-->s (|| st', sp', s1' ||) ->
+        (| st, sp, (TPar << l | s1 >> t2) |)  -->ts
+        (| st', sp', (TPar << l | s1' >> t2) |)
         
-    | S_ST2 : forall st s2 s2' st' t1 n sp sp',
-        (|| st, sp, s2 ||) --[id n]-->s (|| st', sp', s2' ||) ->
-        (| st, sp, (TPar t1 << id n | s2 >>) |)  -->ts
-        (| st', sp', (TPar t1 << id n | s2' >>) |)
+    | S_ST2 : forall st s2 s2' st' t1 l sp sp',
+        (|| st, sp, s2 ||) --[l]-->s (|| st', sp', s2' ||) ->
+        (| st, sp, (TPar t1 << l | s2 >>) |)  -->ts
+        (| st', sp', (TPar t1 << l | s2' >>) |)
      
-    | S_STDone : forall st n n' sp,
-        (| st, sp, (TPar << id n | SKIP >> << id n' | SKIP >>) |) -->ts
-        (| st, sp,  << id n | SKIP >> |)                                                       
+    | S_STDone : forall st l l' sp,
+        (| st, sp, (TPar << l | SKIP >> << l' | SKIP >>) |) -->ts
+        (| st, sp,  << l | SKIP >> |)                                                       
         
 where "'(|' st ',' sp ',' t '|)' '-->ts' '(|' st' ',' sp' ',' t' '|)'" :=
         (tp_sym_step (st, sp, t) (st', sp', t')). 
@@ -248,7 +252,6 @@ Notation " '(|' st ',' sp ',' t '|)' '-->ts*' '(|' st' ',' sp' ',' t' '|)'" :=
 
 (*We use the example on the article, generating sym_states and reducing sym_states 
 only on the true branches of the conditionals*)
-(*We do not have to take the computation untill the end but choose to do so here*)
 Example tpsym_article_true_brances :
   (| (X |-> x(0); Y |-> y(0)), [], example_article |) -->ts*
   (| (X |-> 0 + 1 ; Y |-> 0 ; X |-> 0 ; X |-> x(0) ; Y |-> y(0)),
@@ -268,65 +271,8 @@ Proof.
   eapply multi_step. eapply S_STDone.
   eapply multi_refl. Qed. 
 
-(*we show "completeness" on a concrete example, the one in the article*)
-
-Check  (X !-> 1; Y !-> 0 ; X !-> 0). (*does not know we talk about concrete states*)
-Check (X |-> x(0) ; Y |-> y(0)).
-
-(*we could have a t' instead of << id 1 | SKIP >>. We might need inversion then*)
-(*Yes, we need inversion or induction on the t'*)
-
-(*Theorem exists_symbolic:
-    forall st st' t',
-    (*there are 2 valuations for which if i reach the end of the eval *)
-      (| st , example_article |) -->tc* (| st' , t' |) ->
-    exists st_s st_s' sp, 
-    (*I can find a symbolic evaluation for them*)  
-      (| st_s, [], example_article |) -->ts* (| st_s', sp, t' |).
-(*this is pretty independent from the concrete eval*)
-Proof.
-  (*inversion H usses multi and gives 2 cases, reflexivity and transitivity*)
-  unfold example_article. intros. induction t'. (*rewrite -> H3. *) *)
-  
-Theorem exists_symbolic_finish:
-    forall st st',
-    (*there are 2 valuations for which if i reach the end of the eval *)
-      (| st , example_article |) -->tc* (| st' , << id 1 | SKIP >> |) ->
-    exists st_s st_s' sp, 
-    (*I can find a symbolic evaluation for them*)  
-      (| st_s, [], example_article |) -->ts* (| st_s', sp, << id 1 | SKIP >>|).  
-  exists (X |-> x(0) ; Y |-> y(0)).
-  exists (X |-> 0 + 1 ; Y |-> 0 ; X |-> 0 ; X |-> x(0) ; Y |-> y(0)).
-  (*remember*) exists [id 1⟨SymBool true, [X], []⟩;
-                id 2⟨(0 = 0), [], [X]⟩;
-                id 2⟨SymBool true, [Y], []⟩;
-                id 1⟨SymBool true, [X], [Y]⟩].
-  eapply multi_step. apply S_ST1. apply S_SeqStep. apply S_Ass. simpl.
-  eapply multi_step. apply S_ST1. apply S_SeqFinish.
-
-  eapply multi_step. apply S_ST2. apply S_IfTrue. simpl. 
-  eapply multi_step. apply S_ST2. apply S_Ass.
-
-  eapply multi_step. apply S_ST1. apply S_Ass. simpl.
-  eapply multi_step. eapply S_STDone.
-  eapply multi_refl. Qed.
-
-(*Completenes??, do we want something specific as the end*)
-(*This will be hard to prove, I need someone that knows Coq*)
-Theorem completeness:
-    forall st st' t t',
-    (*there are 2 valuations for which if i reach the end of the eval *)
-      (| st , t |) -->tc* (| st' , t' |) ->
-    exists st_s st_s' sp, 
-    (*I can find a symbolic evaluation for them*)  
-      (| st_s, [], t |) -->ts* (| st_s', sp, t' |).
-Proof. Admitted.
-
-(*On the other way, from symbolic to concrete*)
+(*Trying to combine symbolic with concrete evaluation*)
 (*We need to collect the conditions*)
-
-Check id 1⟨SymBool true, [X], []⟩.
-Check (id 0⟨SymBool true, [], []⟩) :: []. 
 
 Fixpoint sym_cond (s: list event) : (list symExprBool) :=
   match s with
@@ -338,63 +284,59 @@ Compute (sym_cond  [id 0⟨SymBool true, [X], []⟩ ;
              id 0⟨SymNot (x(0) < 1), [], [X]⟩;
              id 0⟨SymBool true, [Z], []⟩]).
 
-(*the variables are in symaritt , we have to replace there *)
-Compute comp_symExprArit (x(0)) (x(0)).
-
-(*attempting the subst composition, these should all be added in Maps.v*)
-Definition total_sym_map (A : Type) := symExprArit -> A.
-Definition s_empty {A : Type} (v : A) : total_sym_map A :=
+(*Creating the map for the conretization*)
+Definition total_subst_map (A : Type) := symExprArit -> A.
+Definition s_empty {A : Type} (v : A) : total_subst_map A :=
   (fun _ => v).
-Definition s_update {A : Type} (m : total_sym_map A)
+Definition s_update {A : Type} (m : total_subst_map A)
                     (x : symExprArit) (v : A) :=
   fun x' => if comp_symExprArit x x' then v else m x'.
 Notation "'_' '||->' v" := (s_empty v)
                              (at level 100, right associativity).
-
 Notation "x '||->' v ';' m" := (s_update m x v)
                               (at level 100, v at next level, right associativity).
 
-Definition subst_state := total_sym_map nat.
-(*default value*)
-Definition empty_subst_st := (_ ||-> 0). (*the same as for state!*)
+Definition subst_state := total_subst_map aexpr. 
+(*Our map*)
+Definition empty_subst_st := (_ ||-> ANum 0). (*the same as for state!*)
 Notation "a '||->' x" := (s_update empty_subst_st a x) (at level 100).
-Check x 0.
-Check (X |-> x 0).
-Check (X !-> 1). 
-Check ((x 0) ||-> 1).
 
-(*OBS: these WILL have the same variables always as keys*)
-(*cannot match! this has to be given manually for now *)
+(*Checking if the program recognizes the difference between the 3 maps*)
+Check (X |-> x 0). (*string -> symExprArit*)
+Check (X !-> 1). (*string -> nat*)
+Check ((x 0) ||-> 1; y 0 + 2 ||-> X).
 
-Fixpoint subst_symExprArit (a : symExprArit) (s : subst_state) : nat :=
+(*Evaluate expressions with a subst state*)
+Fixpoint subst_symExprArit (s : subst_state) (a : symExprArit) : aexpr :=
   match a with 
   | SymLNat x' => s x'
   | SymNat n => n
-  | SymPlus a1 a2 => (subst_symExprArit a1 s) + (subst_symExprArit a2 s)
-  | SymMult a1 a2 => (subst_symExprArit a1 s) * (subst_symExprArit a2 s)
+  | SymPlus a1 a2 => (subst_symExprArit s a1) + (subst_symExprArit s a2)
+  | SymMult a1 a2 => (subst_symExprArit s a1) * (subst_symExprArit s a2)
   end.
 
 Definition init_state := (x 0 ||-> 1; y 0 ||-> 2).
 Print init_state.
 Check (x 0 + 1 + y 0).
-Compute subst_symExprArit (x 0 + 1 * y 0) init_state. (*WORKS!*)
+Compute subst_symExprArit init_state (x 0 + 1 * y 0). (*WORKS, but it could have constant folding!*)
+(*Checks for boolean functions*)
 Compute (negb true).
 Compute (andb true false).
 Compute (eqb 1 2).
 Compute (leb 2 1).
 
 (*should i maybe have a separate function for bool vs list bool *)
-Fixpoint subst_symExprBool (b : symExprBool) (s : subst_state) : bool :=
+(*Fixpoint subst_symExprBool (s : subst_state) (b : symExprBool)  : bool :=
   match b with
   | SymBool b' => b'
-  | SymNot b' => negb (subst_symExprBool b' s)
-  | SymAnd b1 b2 => andb (subst_symExprBool b1 s) (subst_symExprBool b2 s)
-  | SymEq a1 a2 => eqb (subst_symExprArit a1 s) (subst_symExprArit a2 s)
-  | SymLessThan a1 a2 => leb (subst_symExprArit a1 s) (subst_symExprArit a2 s)
+  | SymNot b' => negb (subst_symExprBool s b')
+  | SymAnd b1 b2 => andb (subst_symExprBool s b1) (subst_symExprBool s b2)
+  | SymEq a1 a2 => (subst_symExprArit s a1) =? (subst_symExprArit s a2)
+  | SymLessThan a1 a2 => (subst_symExprArit s a1) <? (subst_symExprArit s a2)
   end.
 
 Check (x 0 + 1 = y 0).
-Compute subst_symExprBool (x 0 + 1 = y 0) init_state. 
+Compute subst_symExprBool (x 0 + 1 = y 0) init_state.  
 
 
 Fixpoint subst_sym_cond (c : list symExprBool) (s : subst_state) : list bool :=
@@ -420,19 +362,120 @@ Proof. simpl. reflexivity. Qed.
 Example cond_true :
   forallb (andb true) (subst_sym_cond ex_path (x 0 ||-> 7 ; y 0 ||-> 7)) = true.
 Proof. simpl. reflexivity. Qed.
+ *)
 
-Compute (compose (x 0 ||-> 1) (X |-> x 0 )) X . (*works, but only with the same expressions... !!!!!!*)
-Check (compose (x 0 ||-> 1) (X |-> x 0 )). (*string -> nat*)
-(*Maybe it is enough as we have original subst?*)
-(*Trying to express correctness*)
+(*Testing built-in function composition*)
+Compute (compose (x 0 ||-> 1) (X |-> x 0 )) X .
+Check (compose (x 0 ||-> 1) (X |-> x 0 )). (*string -> aexpr*)
 
-(*Theorem exists_concrete_finish:
-    forall st st',
+(*Function for concretization that helps us connect states and sym_states*)
+Inductive concretization : subst_state -> sym_state -> state -> Prop :=
+| Con_empty : forall sub,
+    concretization sub empty_sym_st empty_st
+| Con_update : forall sub sym_st st X sym_X n,
+    concretization sub sym_st st ->
+    aeval st (subst_symExprArit sub sym_X) = n ->
+    concretization sub (X |-> sym_X; sym_st) (X !-> n; st).
+
+(*Examples of how concretization works*)
+Example conc_1:
+  concretization (x 0 ||-> 1) empty_sym_st empty_st.
+Proof. apply Con_empty. Qed.
+
+Example conc_2:
+  concretization (x 0 ||-> 1) (X |-> x 0 + 1) (X !-> 2).
+(*need to prove the conditions that makes this true, we have 2 conditions*)
+Proof. apply Con_update. apply Con_empty. simpl. reflexivity. Qed.
+
+Example conc_3:
+  ~ concretization (x 0 ||-> 1) (X |-> x 0 + 1) (X !-> 3).
+Proof.
+  (*this would be easy to show with a partial function, more difficult here as 
+the empty state always contains something*)
+  (*Here we have not defined what it means that 2 maps are different!*)
+  intuition. (*unfold not. intros. *) inversion H.  
+  assert (~ empty_st = (X !-> 3)).
+  - unfold not.  unfold t_update. unfold empty_st. unfold t_empty.
+  (*cannot do anything else from here*) Abort. 
+Theorem equiv_subst: forall st f st_s a,
+    aeval st (subst_symExprArit f (sym_aeval st_s a)) = aeval st a.
+Proof.
+  (*induction on a? *)
+  intros. induction a.
+  - simpl. reflexivity.
+  - simpl. rewrite IHa1. rewrite IHa2. reflexivity.
+  - simpl. (*could the problem be that it does not kno (st_s s) is an LNat?*)
+    assert (subst_symExprArit f (st_s s) = s).
+    (*I think this is the issue, the program cannot figure out that it is an LNat*)
+    (*apply (SymLNat (st_s s)).*) 
+    + induction s. Abort. 
+
+  
+(*Proof of competeness for the -->c relation*)
+Theorem complete:
+    forall st st' stm l f st_s sp,
     (*there are 2 valuations for which if i reach the end of the eval *)
-      (| st , example_article |) -->tc* (| st' , << id 1 | SKIP >> |) ->
-    exists st_s st_s' sp, 
+      (|| st , stm ||) -->c (|| st' , SKIP ||) 
+      /\ concretization f st_s st ->
+    exists st_s' sp', 
     (*I can find a symbolic evaluation for them*)  
-      (| st_s, [], example_article |) -->ts* (| st_s', sp, << id 1 | SKIP >>|).  *)
+      (|| st_s, sp, stm ||) --[l]-->s (|| st_s', sp', SKIP ||)
+      /\ concretization f st_s' st'.  
+Proof.
+  intros. inversion H. inversion H0.
+  - subst. exists (i |-> sym_aeval st_s a; st_s). exists (sp ++ [l⟨SymBool true, [i], vars_arit a⟩]). split. constructor. apply Con_update. assumption. simpl.
+
+Qed.
+  (*destruct stm. *) 
+
+(*Theorem complete2:
+    forall st st' f st_s sp TP TP', 
+    (*there are 2 valuations for which if i reach the end of the eval *)
+      (| st , TP |) -->tc (| st' , TP' |) 
+      -> concretization f st_s st ->
+    exists st_s' sp', 
+    (*I can find a symbolic evaluation for them*)  
+      (| st_s, sp, TP |) -->ts (| st_s', sp', TP'|) 
+      /\ concretization f st_s' st'. 
+Proof. intros. induction TP.
+       - 
+         inversion H.
+       - destruct H. apply TS_T1 with (st := st) (t1' := ) in H.
+         apply TS_ST1 with (st := st0) (s1 := s1) (s1' := s1') (st' := st'0) (n :=n) (t2 :=t2) in H. 
+
+
+
+
+
+       - destruct IHtpstep. destruct H1. exists x0. exists x1. assumption.
+       - destruct IHtpstep. destruct H1. exists x0. exists x1. assumption.
+       - apply TS_ST1 with (st := st0) (s1 := s1) (s1' := s1') (st' := st'0) (n :=n) (t2 :=t2) in H.
+         
+
+
+         remember TS_ST1. destruct (t st s1 s1' st' n t2) as (st0 | s1 |  s1 | st'0 | n | t2).  
+         (*remember ( (| st, TPar << id n | s1 >> t2 |) -->tc (| st', TPar << id n | s1' >> t2 |) ) as TS_ST1.*)
+         intro tpstep. induction H. subst. rewrite H.  inversion H.  
+
+         
+       - destruct IHtpstep. destruct H1. exists x0. exists x1. assumption.
+       exists empty_sym_st. exists sp. split. inversion H. subst. apply S_T1. 
+(*Theorem exists_concrete_finish:
+    forall st_s sp,
+    (*there are 2 valuations for which if i reach the end of the eval *)
+      (| (X |-> x 0; Y |-> y 0), [], example_article |) -->ts* (| st_s, sp,  << id 1 | SKIP >> |) ->
+    exists st_init st', 
+    (*I can find a symbolic evaluation for them*)  
+      (| compose st_init (X |-> x 0; Y |-> y 0), example_article |) -->tc* (| st', << id 1 | SKIP >>|).
+Proof.
+  intros.
+  exists (x 0 ||-> 0; y 0 ||-> 0). exists (X !-> 1; X !-> 0; Y !-> 0).
+  eapply multi_step. apply TS_ST2. apply CS_IfTrue. simpl. reflexivity.
+  eapply multi_step. apply TS_ST2. apply CS_Ass. simpl.
+  eapply multi_step. apply TS_ST1. apply CS_SeqStep. apply CS_Ass. simpl.
+  eapply multi_step. apply TS_ST1. apply CS_SeqFinish. eapply multi_step. apply TS_ST1. apply CS_Ass. simpl.
+  eapply multi_step. apply TS_STDone. apply multi_refl. *) *)
+  
 
 
 
