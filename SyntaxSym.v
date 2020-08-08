@@ -174,7 +174,6 @@ Module Syntax.
   | z (n: nat).
   Print LNat.
   
-
   (*Symbolic arithmetical expressions*)
   Inductive symExprArit : Type :=
   | SymLNat (x : LNat)
@@ -219,8 +218,9 @@ Module Syntax.
   (*We need this for the substitution connecting symbolic and concrete eval*)
   (*need to change the type for function composition -> simplified, might need change 
    in order to make it proper*)
-  Definition comp_symExprArit (l1 l2: symExprArit) : bool :=
+  Fixpoint comp_symExprArit (l1 l2: symExprArit) : bool :=
     match l1 with
+    (*if l1 is a LNat *)
     | x n =>
       match l2 with
       | x n' =>
@@ -253,18 +253,50 @@ Module Syntax.
       | SymPlus a1 a2 => false
       | SymMult a1 a2 => false
       end
-    | SymNat n => false
-    | SymPlus a1 a2 => false
-    | SymMult a1 a2 => false
 
+    (*if l1 is SymNat*)
+    | SymNat n =>
+      match l2 with
+      | SymLNat x' => false
+      | SymNat n' => if beq_nat n n' then true else false
+      | SymPlus a1 a2 => false
+      | SymMult a1 a2 => false
+      end
+        
+    (*if l1 is a plus aexpr*)
+    | SymPlus a1 a2 =>
+      match l2 with
+      | SymLNat x' => false
+      | SymNat n => false
+      | SymPlus a1' a2' =>
+        (*I assume that the order is relevant so I want my expressions to preserve it*)
+        if (andb (comp_symExprArit a1 a1') (comp_symExprArit a2 a2'))
+        then true else false
+      (*we do not care if the results are the same, we want the expressions to match*)
+      | SymMult a1 a2 => false
+      end
+
+    (*if l1 is a mult aexpr*)
+    | SymMult a1 a2 =>
+      match l2 with
+      | SymLNat x' => false
+      | SymNat n => false
+      | SymPlus a1 a2 => false
+      | SymMult a1' a2' =>
+        if (andb (comp_symExprArit a1 a1') (comp_symExprArit a2 a2'))
+        then true else false
+      end
+        
     end .
-    
-  Check x(0). 
+
+  (*Example tests*)
+  Check x(0).
+  Check y 8. 
   Compute (comp_symExprArit (x(0)) (x(0))).      
   Compute comp_symExprArit (x(0)) (x(1)).
   Compute comp_symExprArit (x(0)) (y(0)).
-
-  Check x(0).
-  Check y(8).
+  Compute comp_symExprArit (x 0 + y 0 * 9) (x 0 + y 0 * 9).
+  (*I preserve the order of the arguments*)
+  Compute comp_symExprArit (x 0 + y 0 * 9) (y 0 + x 0 * 9).
 
 End Syntax.
