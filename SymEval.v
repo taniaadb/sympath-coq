@@ -375,7 +375,7 @@ Inductive concretization : subst_state -> sym_state -> state -> Prop :=
 | Con_update : forall sub sym_st st X sym_X n,
     concretization sub sym_st st ->
     aeval st (subst_symExprArit sub sym_X) = n ->
-    concretization sub (X |-> sym_X; sym_st) (X !-> n; st).
+    concretization sub (X |-> sym_X; sym_st) (X !-> n; st). 
 
 (*Examples of how concretization works*)
 Example conc_1:
@@ -396,20 +396,27 @@ the empty state always contains something*)
   intuition. (*unfold not. intros. *) inversion H.  
   assert (~ empty_st = (X !-> 3)).
   - unfold not.  unfold t_update. unfold empty_st. unfold t_empty.
-  (*cannot do anything else from here*) Abort. 
+(*cannot do anything else from here*) Abort.
+
+(*I can add the definition that I need but with no proof*)
+
 Theorem equiv_subst: forall st f st_s a,
     aeval st (subst_symExprArit f (sym_aeval st_s a)) = aeval st a.
 Proof.
-  (*induction on a? *)
-  intros. induction a.
-  - simpl. reflexivity.
-  - simpl. rewrite IHa1. rewrite IHa2. reflexivity.
+  (*induction on a *) 
+  intros. induction a; 
+  try reflexivity;
+  try (simpl; rewrite IHa1; rewrite IHa2; reflexivity).
   - simpl. (*could the problem be that it does not kno (st_s s) is an LNat?*)
-    assert (subst_symExprArit f (st_s s) = s).
-    (*I think this is the issue, the program cannot figure out that it is an LNat*)
-    (*apply (SymLNat (st_s s)).*) 
-    + induction s. Abort. 
-
+    assert (subst_symExprArit f (st_s s) = s).  Abort. 
+  (*I think this is the issue, the program cannot figure out that it is an LNat*)
+  (*the problem could come because our concretization is not explicit enough*)
+ (* Var 2
+  intros. assert (subst_symExprArit f (sym_aeval st_s a) = a). 
+  - induction a;
+    try reflexivity;
+    try (simpl; rewrite IHa1; rewrite IHa2; reflexivity). *)
+  
   
 (*Proof of competeness for the -->c relation*)
 Theorem complete:
@@ -423,10 +430,9 @@ Theorem complete:
       /\ concretization f st_s' st'.  
 Proof.
   intros. inversion H. inversion H0.
-  - subst. exists (i |-> sym_aeval st_s a; st_s). exists (sp ++ [l⟨SymBool true, [i], vars_arit a⟩]). split. constructor. apply Con_update. assumption. simpl.
+  - subst. exists (i |-> sym_aeval st_s a; st_s). exists (sp ++ [l⟨SymBool true, [i], vars_arit a⟩]). split. constructor. apply Con_update. assumption. simpl. (*we need equiv_subst here*)
+ Abort. 
 
-Qed.
-  (*destruct stm. *) 
 
 (*Theorem complete2:
     forall st st' f st_s sp TP TP', 
@@ -436,30 +442,8 @@ Qed.
     exists st_s' sp', 
     (*I can find a symbolic evaluation for them*)  
       (| st_s, sp, TP |) -->ts (| st_s', sp', TP'|) 
-      /\ concretization f st_s' st'. 
-Proof. intros. induction TP.
-       - 
-         inversion H.
-       - destruct H. apply TS_T1 with (st := st) (t1' := ) in H.
-         apply TS_ST1 with (st := st0) (s1 := s1) (s1' := s1') (st' := st'0) (n :=n) (t2 :=t2) in H. 
+      /\ concretization f st_s' st'. *)
 
-
-
-
-
-       - destruct IHtpstep. destruct H1. exists x0. exists x1. assumption.
-       - destruct IHtpstep. destruct H1. exists x0. exists x1. assumption.
-       - apply TS_ST1 with (st := st0) (s1 := s1) (s1' := s1') (st' := st'0) (n :=n) (t2 :=t2) in H.
-         
-
-
-         remember TS_ST1. destruct (t st s1 s1' st' n t2) as (st0 | s1 |  s1 | st'0 | n | t2).  
-         (*remember ( (| st, TPar << id n | s1 >> t2 |) -->tc (| st', TPar << id n | s1' >> t2 |) ) as TS_ST1.*)
-         intro tpstep. induction H. subst. rewrite H.  inversion H.  
-
-         
-       - destruct IHtpstep. destruct H1. exists x0. exists x1. assumption.
-       exists empty_sym_st. exists sp. split. inversion H. subst. apply S_T1. 
 (*Theorem exists_concrete_finish:
     forall st_s sp,
     (*there are 2 valuations for which if i reach the end of the eval *)
@@ -467,18 +451,8 @@ Proof. intros. induction TP.
     exists st_init st', 
     (*I can find a symbolic evaluation for them*)  
       (| compose st_init (X |-> x 0; Y |-> y 0), example_article |) -->tc* (| st', << id 1 | SKIP >>|).
-Proof.
-  intros.
-  exists (x 0 ||-> 0; y 0 ||-> 0). exists (X !-> 1; X !-> 0; Y !-> 0).
-  eapply multi_step. apply TS_ST2. apply CS_IfTrue. simpl. reflexivity.
-  eapply multi_step. apply TS_ST2. apply CS_Ass. simpl.
-  eapply multi_step. apply TS_ST1. apply CS_SeqStep. apply CS_Ass. simpl.
-  eapply multi_step. apply TS_ST1. apply CS_SeqFinish. eapply multi_step. apply TS_ST1. apply CS_Ass. simpl.
-  eapply multi_step. apply TS_STDone. apply multi_refl. *) *)
+Proof. *)
   
-
-
-
 
 Close Scope symexpr. 
 Close Scope stm_scope.                           
