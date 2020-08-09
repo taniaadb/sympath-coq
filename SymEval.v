@@ -304,9 +304,9 @@ Notation "a '||->' x" := (s_update empty_subst_st a x) (at level 100).
 (*Checking if the program recognizes the difference between the 3 maps*)
 Check (X |-> x 0). (*string -> symExprArit*)
 Check (X !-> 1). (*string -> nat*)
-Check ((x 0) ||-> 1; y 0 + 2 ||-> X).
+Check ((x 0) ||-> 1; y 0 + 2 ||-> X). (*symExprArit -> aexpr*)
 
-(*Evaluate expressions with a subst state*)
+(*Evaluate Arit expressions with a subst state*)
 Fixpoint subst_symExprArit (s : subst_state) (a : symExprArit) : aexpr :=
   match a with 
   | SymLNat x' => s x'
@@ -315,55 +315,12 @@ Fixpoint subst_symExprArit (s : subst_state) (a : symExprArit) : aexpr :=
   | SymMult a1 a2 => (subst_symExprArit s a1) * (subst_symExprArit s a2)
   end.
 
+(*Examples*)
 Definition init_state := (x 0 ||-> 1; y 0 ||-> 2).
 Print init_state.
 Check (x 0 + 1 + y 0).
-Compute subst_symExprArit init_state (x 0 + 1 * y 0). (*WORKS, but it could have constant folding!*)
-(*Checks for boolean functions*)
-Compute (negb true).
-Compute (andb true false).
-Compute (eqb 1 2).
-Compute (leb 2 1).
-
-(*should i maybe have a separate function for bool vs list bool *)
-(*Fixpoint subst_symExprBool (s : subst_state) (b : symExprBool)  : bool :=
-  match b with
-  | SymBool b' => b'
-  | SymNot b' => negb (subst_symExprBool s b')
-  | SymAnd b1 b2 => andb (subst_symExprBool s b1) (subst_symExprBool s b2)
-  | SymEq a1 a2 => (subst_symExprArit s a1) =? (subst_symExprArit s a2)
-  | SymLessThan a1 a2 => (subst_symExprArit s a1) <? (subst_symExprArit s a2)
-  end.
-
-Check (x 0 + 1 = y 0).
-Compute subst_symExprBool (x 0 + 1 = y 0) init_state.  
-
-
-Fixpoint subst_sym_cond (c : list symExprBool) (s : subst_state) : list bool :=
-  match c with 
-  | [] => []
-  | e :: t => subst_symExprBool e s :: subst_sym_cond t s
-  end.
-
-Definition ex_path := [SymBool true; SymNot (x 0 < 5); (y 0 = x 0)].
-Check ex_path.
-Compute subst_sym_cond ex_path (x 0 ||-> 1 ; y 0 ||-> 1).
-Example cond_ex :
-  subst_sym_cond ex_path (x 0 ||-> 1 ; y 0 ||-> 1) = [true; false; true]. 
-Proof.     
-  simpl. reflexivity. Qed.
-
-(*can use count occurances, find, existsb -> only figgured out existsb/forallb*)
-Print forallb.
-Compute forallb (andb true) [false; true].
-Example cond_false :
-  forallb (andb true) (subst_sym_cond ex_path (x 0 ||-> 1 ; y 0 ||-> 1)) = false.
-Proof. simpl. reflexivity. Qed.
-Example cond_true :
-  forallb (andb true) (subst_sym_cond ex_path (x 0 ||-> 7 ; y 0 ||-> 7)) = true.
-Proof. simpl. reflexivity. Qed.
- *)
-
+(*WORKS, but it could have constant folding!*)
+Compute subst_symExprArit init_state (x 0 + 1 * y 0). 
 (*Testing built-in function composition*)
 Compute (compose (x 0 ||-> 1) (X |-> x 0 )) X .
 Check (compose (x 0 ||-> 1) (X |-> x 0 )). (*string -> aexpr*)
@@ -422,16 +379,16 @@ Proof. Admitted.  (*if admitted then i can use it for other things *)
 Theorem complete:
     forall st st' stm l f st_s sp,
     (*there are 2 valuations for which if i reach the end of the eval *)
-      (|| st , stm ||) -->c (|| st' , SKIP ||) 
-      /\ concretization f st_s st ->
+      (|| st , stm ||) -->c (|| st' , SKIP||) 
+      -> concretization f st_s st -> 
     exists st_s' sp', 
     (*I can find a symbolic evaluation for them*)  
       (|| st_s, sp, stm ||) --[l]-->s (|| st_s', sp', SKIP ||)
       /\ concretization f st_s' st'.  
 Proof.
-  intros. inversion H. inversion H0; subst.
+  intros. (*inversion H.*) inversion H; subst. (*inversion H0; subst.*)
   (*assignment -> CS_Ass*) 
-  - exists (i |-> sym_aeval st_s a; st_s).
+  - exists  (i |-> sym_aeval st_s a; st_s).
     exists (sp ++ [l⟨SymBool true, [i], vars_arit a⟩]).
     split.
     + constructor. 
@@ -469,18 +426,84 @@ Theorem complete2:
     (*I can find a symbolic evaluation for them*)  
       (| st_s, sp, TP |) -->ts (| st_s', sp', TP'|) 
       /\ concretization f st_s' st'.
-Proof.
+Proof. Admitted.
   (*intros. inversion H. induction TP.
   - inversion H0. subst. apply *)
 
-(*Theorem exists_concrete_finish:
-    forall st_s sp,
-    (*there are 2 valuations for which if i reach the end of the eval *)
-      (| (X |-> x 0; Y |-> y 0), [], example_article |) -->ts* (| st_s, sp,  << id 1 | SKIP >> |) ->
-    exists st_init st', 
-    (*I can find a symbolic evaluation for them*)  
-      (| compose st_init (X |-> x 0; Y |-> y 0), example_article |) -->tc* (| st', << id 1 | SKIP >>|).
-Proof. *)
+(*Correctness*)
+
+(*Checks for boolean functions*)  
+Compute (negb true).
+Compute (andb true false).
+Compute (eqb 1 2).
+Compute (leb 2 1).
+
+(*Evaluate Bool expressions with a subst state *)
+Fixpoint subst_symExprBool (s : subst_state) (b : symExprBool)  : bexpr :=
+  match b with
+  | SymBool b' => b'
+  | SymNot b' => ~ (subst_symExprBool s b')
+  | SymAnd b1 b2 => (subst_symExprBool s b1) && (subst_symExprBool s b2)
+  | SymEq a1 a2 => (subst_symExprArit s a1) = (subst_symExprArit s a2)
+  | SymLessThan a1 a2 => (subst_symExprArit s a1) < (subst_symExprArit s a2)
+  end.
+
+(*Examples*)
+Check (x 0 + 1 = y 0).
+Compute subst_symExprBool init_state (x 0 + 1 = y 0).  
+
+(*Evaluate list of Bool expressions*)
+Fixpoint subst_sym_cond (s : subst_state)  (c : list symExprBool) : list bexpr :=
+  match c with 
+  | [] => []
+  | e :: t => subst_symExprBool s e :: subst_sym_cond s t
+  end.
+
+(*Examples*)
+Definition ex_path := [SymBool true; SymNot (x 0 + 3 < 5); (y 0 = x 0)].
+Check ex_path.
+Compute subst_sym_cond (x 0 ||-> 1 ; y 0 ||-> 1)  ex_path.
+Check (~ (1 < 5))%expr.
+Example cond_ex :
+  subst_sym_cond (x 0 ||-> 1 ; y 0 ||-> 1) ex_path  = [BTrue; (~ (1 + 3 < 5))%expr; (1 = 1)%expr]. 
+Proof.     
+  simpl. reflexivity. Qed.
+
+(*transform list of bexpr in list of bool*)
+(*technically we do not have any variables so we can rewrite beval as we do not need 
+states, but then we need to rewrite aeval as well...*)
+Fixpoint beval_cond (st : state) (c : list bexpr)  : list bool :=
+  match c with
+  | [] => []
+  | e :: t => beval st e :: beval_cond st t
+  end.
+
+(*can use count occurances, find, existsb -> only figgured out existsb/forallb*)
+Print forallb.
+Compute forallb (andb true) [false; true].
+
+(*Now we need to check whether these are actually evaluated true, we need at least 
+something to take us from bexpr to bool?*)
+Example cond_false :
+  forallb (andb true)
+     (beval_cond empty_st (subst_sym_cond (x 0 ||-> 1 ; y 0 ||-> 1) ex_path)) = false.
+Proof. simpl. reflexivity. Qed.
+Example cond_true :
+  forallb (andb true)
+     (beval_cond empty_st (subst_sym_cond (x 0 ||-> 7 ; y 0 ||-> 7) ex_path)) = true.
+Proof. simpl. reflexivity. Qed.
+
+Theorem correct:
+    forall st_s st_s' stm sp l st f,
+      (||st_s, [], stm||) --[l]-->s (|| st_s', sp, SKIP ||) 
+      /\ concretization f st_s st 
+      /\ (*the conditions in the symPath are true*)
+      forallb (andb true)
+         (beval_cond st (subst_sym_cond f (sym_cond sp))) = true ->
+    exists st', 
+      (|| st, stm ||) -->c (|| st', SKIP ||)
+      /\ concretization f st_s' st'.
+Proof. Admitted. 
   
 
 Close Scope symexpr. 
