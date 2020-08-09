@@ -402,13 +402,13 @@ the empty state always contains something*)
 
 Theorem equiv_subst: forall st f st_s a,
     aeval st (subst_symExprArit f (sym_aeval st_s a)) = aeval st a.
-Proof.
-  (*induction on a *) 
+Proof. Admitted.  (*if admitted then i can use it for other things *)
+ (* (*induction on a *) 
   intros. induction a; 
   try reflexivity;
   try (simpl; rewrite IHa1; rewrite IHa2; reflexivity).
   - simpl. (*could the problem be that it does not kno (st_s s) is an LNat?*)
-    assert (subst_symExprArit f (st_s s) = s).  Abort. 
+    assert (subst_symExprArit f (st_s s) = s).  Abort.  *)
   (*I think this is the issue, the program cannot figure out that it is an LNat*)
   (*the problem could come because our concretization is not explicit enough*)
  (* Var 2
@@ -429,20 +429,49 @@ Theorem complete:
       (|| st_s, sp, stm ||) --[l]-->s (|| st_s', sp', SKIP ||)
       /\ concretization f st_s' st'.  
 Proof.
-  intros. inversion H. inversion H0.
-  - subst. exists (i |-> sym_aeval st_s a; st_s). exists (sp ++ [l⟨SymBool true, [i], vars_arit a⟩]). split. constructor. apply Con_update. assumption. simpl. (*we need equiv_subst here*)
- Abort. 
+  intros. inversion H. inversion H0; subst.
+  (*assignment -> CS_Ass*) 
+  - exists (i |-> sym_aeval st_s a; st_s).
+    exists (sp ++ [l⟨SymBool true, [i], vars_arit a⟩]).
+    split.
+    + constructor. 
+    + apply Con_update. assumption. simpl.
+      apply equiv_subst.  (*we need equiv_subst here*)
+  (*CS_SeqFinish*)
+  - exists st_s. exists sp.
+    split.
+    + constructor.
+    + assumption.
+  (*CS_IfTrue*)
+  - exists st_s. exists (sp ++ [l⟨sym_beval st_s b, [], vars_bool b⟩]).
+    split.
+    + constructor.
+    + assumption.
+  (*CS_IfFalse*)
+  - exists st_s. exists (sp ++ [l⟨SymNot (sym_beval st_s b), [], vars_bool b⟩]).
+    split.
+    + constructor.
+    + assumption.
+  (*CS_N0While*)
+  - exists st_s. exists sp.
+    split.
+    + constructor. reflexivity.
+    + assumption. 
+Qed. 
 
-
-(*Theorem complete2:
+(*Proof of completeness for -->tc *)
+Theorem complete2:
     forall st st' f st_s sp TP TP', 
     (*there are 2 valuations for which if i reach the end of the eval *)
       (| st , TP |) -->tc (| st' , TP' |) 
-      -> concretization f st_s st ->
+      /\ concretization f st_s st ->
     exists st_s' sp', 
     (*I can find a symbolic evaluation for them*)  
       (| st_s, sp, TP |) -->ts (| st_s', sp', TP'|) 
-      /\ concretization f st_s' st'. *)
+      /\ concretization f st_s' st'.
+Proof.
+  (*intros. inversion H. induction TP.
+  - inversion H0. subst. apply *)
 
 (*Theorem exists_concrete_finish:
     forall st_s sp,
