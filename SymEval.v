@@ -285,12 +285,12 @@ Compute (sym_cond  [id 0⟨SymBool true, [X], []⟩ ;
              id 0⟨SymBool true, [Z], []⟩]).
 
 (*Creating the map for the conretization*)
-Definition total_subst_map (A : Type) := symExprArit -> A.
+Definition total_subst_map (A : Type) := LNat -> A.
 Definition s_empty {A : Type} (v : A) : total_subst_map A :=
   (fun _ => v).
 Definition s_update {A : Type} (m : total_subst_map A)
-                    (x : symExprArit) (v : A) :=
-  fun x' => if comp_symExprArit x x' then v else m x'.
+                    (x : LNat) (v : A) :=
+  fun x' => if comp_LNat x x' then v else m x'.
 Notation "'_' '||->' v" := (s_empty v)
                              (at level 100, right associativity).
 Notation "x '||->' v ';' m" := (s_update m x v)
@@ -304,7 +304,7 @@ Notation "a '||->' x" := (s_update empty_subst_st a x) (at level 100).
 (*Checking if the program recognizes the difference between the 3 maps*)
 Check (X |-> x 0). (*string -> symExprArit*)
 Check (X !-> 1). (*string -> nat*)
-Check ((x 0) ||-> 1; y 0 + 2 ||-> X). (*symExprArit -> aexpr*)
+Check ((x 0) ||-> 1; y 0 ||-> X). (*symExprArit -> aexpr*)
 
 (*Evaluate Arit expressions with a subst state*)
 Fixpoint subst_symExprArit (s : subst_state) (a : symExprArit) : aexpr :=
@@ -319,11 +319,7 @@ Fixpoint subst_symExprArit (s : subst_state) (a : symExprArit) : aexpr :=
 Definition init_state := (x 0 ||-> 1; y 0 ||-> 2).
 Print init_state.
 Check (x 0 + 1 + y 0).
-(*WORKS, but it could have constant folding!*)
 Compute subst_symExprArit init_state (x 0 + 1 * y 0). 
-(*Testing built-in function composition*)
-Compute (compose (x 0 ||-> 1) (X |-> x 0 )) X .
-Check (compose (x 0 ||-> 1) (X |-> x 0 )). (*string -> aexpr*)
 
 (*Function for concretization that helps us connect states and sym_states*)
 Inductive concretization : subst_state -> sym_state -> state -> Prop :=
@@ -360,19 +356,27 @@ the empty state always contains something*)
 Theorem equiv_subst: forall st f st_s a,
     aeval st (subst_symExprArit f (sym_aeval st_s a)) = aeval st a.
 Proof. Admitted.  (*if admitted then i can use it for other things *)
- (* (*induction on a *) 
-  intros. induction a; 
-  try reflexivity;
-  try (simpl; rewrite IHa1; rewrite IHa2; reflexivity).
-  - simpl. (*could the problem be that it does not kno (st_s s) is an LNat?*)
-    assert (subst_symExprArit f (st_s s) = s).  Abort.  *)
-  (*I think this is the issue, the program cannot figure out that it is an LNat*)
-  (*the problem could come because our concretization is not explicit enough*)
- (* Var 2
-  intros. assert (subst_symExprArit f (sym_aeval st_s a) = a). 
-  - induction a;
-    try reflexivity;
-    try (simpl; rewrite IHa1; rewrite IHa2; reflexivity). *)
+   (*(*induction on a *) 
+  intros. induction a. 
+  - reflexivity.
+  - simpl. rewrite IHa1. rewrite IHa2. reflexivity.
+ (* - simpl. rewrite IHa1. rewrite IHa2. reflexivity.*)
+  - simpl. inversion H.
+    + simpl. constructor.
+    + subst. destruct (eqb_string X0 s) eqn:Hd.
+      * assert ((X0 !-> aeval st0 (subst_symExprArit f sym_X) ; st0) s =  aeval st0 (subst_symExprArit f sym_X)).
+        unfold t_update. rewrite Hd. reflexivity.
+        rewrite H1. clear H1. 
+        assert ((X0 |-> sym_X; sym_st) s = sym_X ).
+        unfold ts_update. rewrite Hd. reflexivity.
+        rewrite H1. clear H1. 
+
+        
+        unfold t_update.  
+
+      induction f as [| f' | j m | IHf'].
+     simpl.
+Abort. *)
   
   
 (*Proof of competeness for the -->c relation*)

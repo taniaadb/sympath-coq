@@ -17,7 +17,7 @@ Module Syntax.
    variables with the arithmetic expressions*)
 
   (*arithmetic expressions*)
-  Inductive aexpr : Type := 
+   Inductive aexpr : Type := 
   | ANum (n : nat)
   | APlus (a1 a2 : aexpr)
   | AVar (s : string) 
@@ -171,7 +171,7 @@ Module Syntax.
   Inductive LNat :=
   | x (n: nat)
   | y (n: nat)
-  | z (n: nat).
+  | z (n: nat). 
   Print LNat.
   
   (*Symbolic arithmetical expressions*)
@@ -218,7 +218,7 @@ Module Syntax.
   (*We need this for the substitution connecting symbolic and concrete eval*)
   (*need to change the type for function composition -> simplified, might need change 
    in order to make it proper*)
-  Fixpoint comp_symExprArit (l1 l2: symExprArit) : bool :=
+  Fixpoint comp_LNat (l1 l2: LNat) : bool :=
     match l1 with
     (*if l1 is a LNat *)
     | x n =>
@@ -227,9 +227,6 @@ Module Syntax.
         if beq_nat n n' then true else false
       | y n' => false
       | z n' => false
-      | SymNat n => false
-      | SymPlus a1 a2 => false
-      | SymMult a1 a2 => false
       end
         
     | y n =>
@@ -237,10 +234,7 @@ Module Syntax.
       | x n' => false       
       | y n' => 
         if beq_nat n n' then true else false
-      | z n' => false
-      | SymNat n => false
-      | SymPlus a1 a2 => false
-      | SymMult a1 a2 => false
+      | z n' => false 
       end
         
     | z n =>
@@ -249,54 +243,15 @@ Module Syntax.
       | y n' => false
       | z n' =>
         if beq_nat n n' then true else false
-      | SymNat n => false
-      | SymPlus a1 a2 => false
-      | SymMult a1 a2 => false
-      end
-
-    (*if l1 is SymNat*)
-    | SymNat n =>
-      match l2 with
-      | SymLNat x' => false
-      | SymNat n' => if beq_nat n n' then true else false
-      | SymPlus a1 a2 => false
-      | SymMult a1 a2 => false
-      end
-        
-    (*if l1 is a plus aexpr*)
-    | SymPlus a1 a2 =>
-      match l2 with
-      | SymLNat x' => false
-      | SymNat n => false
-      | SymPlus a1' a2' =>
-        (*I assume that the order is relevant so I want my expressions to preserve it*)
-        if (andb (comp_symExprArit a1 a1') (comp_symExprArit a2 a2'))
-        then true else false
-      (*we do not care if the results are the same, we want the expressions to match*)
-      | SymMult a1 a2 => false
-      end
-
-    (*if l1 is a mult aexpr*)
-    | SymMult a1 a2 =>
-      match l2 with
-      | SymLNat x' => false
-      | SymNat n => false
-      | SymPlus a1 a2 => false
-      | SymMult a1' a2' =>
-        if (andb (comp_symExprArit a1 a1') (comp_symExprArit a2 a2'))
-        then true else false
-      end
+      end 
         
     end .
 
   (*Example tests*)
   Check x(0).
   Check y 8. 
-  Compute (comp_symExprArit (x(0)) (x(0))).      
-  Compute comp_symExprArit (x(0)) (x(1)).
-  Compute comp_symExprArit (x(0)) (y(0)).
-  Compute comp_symExprArit (x 0 + y 0 * 9) (x 0 + y 0 * 9).
-  (*I preserve the order of the arguments*)
-  Compute comp_symExprArit (x 0 + y 0 * 9) (y 0 + x 0 * 9).
+  Compute (comp_LNat (x(0)) (x(0))).      
+  Compute comp_LNat (x(0)) (x(1)).
+  Compute comp_LNat (x(0)) (y(0)).
 
 End Syntax.

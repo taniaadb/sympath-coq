@@ -251,7 +251,7 @@ Example tpstep_ex2:
     (| empty_st, stm_thread |) -->tc* (| st', << id 0 | SKIP >> |)
     /\ st' X = 1.
 Proof.
-  eapply ex_intro. split. unfold stm_thread. 
+  eapply ex_intro. split. unfold stm_thread.  
   (*thread 2 first*)
   eapply multi_step. apply TS_ST2. apply CS_Ass.
 
@@ -280,7 +280,7 @@ Example tpstep_article :
     (| st, example_article |) -->tc* (| st', << id 1 | SKIP >>|).
 Proof.
   unfold example_article.
-  exists empty_st, (X !->1 ; Y !-> 0; X !-> 0).  (*we give an example of concrete states*)
+  exists empty_st, (X !->1 ; Y !-> 0; X !-> 0).
   eapply multi_step. apply TS_ST1. apply CS_SeqStep. apply CS_Ass. simpl. 
   eapply multi_step. apply TS_ST1. apply CS_SeqFinish.
 
@@ -289,24 +289,7 @@ Proof.
 
   eapply multi_step. apply TS_ST1. apply CS_Ass. simpl.
 
-  eapply multi_step. apply TS_STDone. apply multi_refl. Qed. 
-  
-
-(*Example tpstep_article:
-  (|| ( X !-> 5; Y !-> 5 ), example_article ||) -->tc*
-  (|| (X !->1 ; Y !-> 0 ; X !-> 0 ; X !-> 5; Y !-> 5), Thread (id 1) (SKIP) ||).
-Proof.
-  unfold example_article.
-  eapply multi_step. apply TS_ST1. apply CS_SeqStep. apply CS_Ass. simpl. 
-  eapply multi_step. apply TS_ST1. apply CS_SeqFinish.
-
-  eapply multi_step. apply TS_ST2. apply CS_IfTrue. simpl. reflexivity.
-  eapply multi_step. apply TS_ST2. apply CS_Ass. simpl.
-
-  eapply multi_step. apply TS_ST1. apply CS_Ass. simpl.
-
-  eapply multi_step. apply TS_STDone. apply multi_refl. Qed. *)
-
+  eapply multi_step. apply TS_STDone. eapply multi_refl. Qed. 
   
 Close Scope stm_scope.
 
